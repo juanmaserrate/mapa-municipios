@@ -95,14 +95,19 @@ function inicializarMapa() {
         attributionControl: true
     });
 
-    // Capa de fondo: muy minimalista, sin calles
-    // Usa solo el water/land background de Carto (sin labels ni calles)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+    // Capa de fondo: claro y minimalista (sin etiquetas, calles muy tenues)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO &copy; mgaitan/departamentos_argentina',
         subdomains: 'abcd',
         maxZoom: 19,
-        opacity: 0.35
+        opacity: 0.55
     }).addTo(map);
+
+    // Mostrar/ocultar labels de partidos según zoom
+    map.on('zoomend', () => {
+        const z = map.getZoom();
+        document.body.classList.toggle('zoom-low', z < 8);
+    });
 
     // Cargar polígonos de partidos de Buenos Aires
     cargarPartidos();
@@ -125,11 +130,13 @@ function cargarPartidos() {
                 style: (feature) => estiloPartido(feature, false),
                 onEachFeature: (feature, layer) => {
                     const nombre = feature.properties.nombre || feature.properties.departamento;
+                    // Label permanente en el centro del polígono
                     layer.bindTooltip(nombre, {
-                        permanent: false,
+                        permanent: true,
                         direction: 'center',
-                        className: 'partido-tooltip',
-                        sticky: true
+                        className: 'partido-label',
+                        sticky: false,
+                        opacity: 1
                     });
                     layer.on('mouseover', () => {
                         layer.setStyle(estiloPartido(feature, true));
@@ -367,6 +374,16 @@ function bindUI() {
     document.getElementById('btnCloseClientModal').addEventListener('click', cerrarModalCliente);
     document.getElementById('btnCancelClient').addEventListener('click', cerrarModalCliente);
     document.getElementById('clientForm').addEventListener('submit', crearCliente);
+
+    // Colapsar/expandir sidebar
+    document.getElementById('btnCollapseSidebar').addEventListener('click', () => {
+        document.querySelector('.app').classList.add('sidebar-collapsed');
+        setTimeout(() => map.invalidateSize(), 260);
+    });
+    document.getElementById('btnOpenSidebar').addEventListener('click', () => {
+        document.querySelector('.app').classList.remove('sidebar-collapsed');
+        setTimeout(() => map.invalidateSize(), 260);
+    });
 
     // Export/Import
     document.getElementById('btnExport').addEventListener('click', exportarDatos);
