@@ -103,11 +103,8 @@ function inicializarMapa() {
         opacity: 0.55
     }).addTo(map);
 
-    // Mostrar/ocultar labels de partidos según zoom
-    map.on('zoomend', () => {
-        const z = map.getZoom();
-        document.body.classList.toggle('zoom-low', z < 8);
-    });
+    // Mostrar/ocultar labels de partidos según el espacio disponible
+    map.on('zoomend moveend', actualizarLabelsPartidos);
 
     // Cargar polígonos de partidos de Buenos Aires
     cargarPartidos();
@@ -157,6 +154,7 @@ function cargarPartidos() {
             });
             partidosLayer.addTo(map);
             partidosLayer.bringToBack();
+            actualizarLabelsPartidos();
         })
         .catch(err => {
             console.error('Error cargando partidos:', err);
@@ -196,6 +194,43 @@ function refrescarPartidos() {
     if (!partidosLayer) return;
     partidosLayer.eachLayer(layer => {
         layer.setStyle(estiloPartido(layer.feature, false));
+    });
+}
+
+// Muestra el label solo si entra en el polígono visible y el zoom es suficiente
+function actualizarLabelsPartidos() {
+    if (!partidosLayer) return;
+    const zoom = map.getZoom();
+    const mapBounds = map.getBounds();
+
+    partidosLayer.eachLayer(layer => {
+        const tooltip = layer.getTooltip();
+        if (!tooltip) return;
+        const el = tooltip.getElement();
+        if (!el) return;
+
+        const bounds = layer.getBounds();
+
+        // Fuera de la vista: ocultar
+        if (!mapBounds.intersects(bounds)) {
+            el.style.display = 'none';
+            return;
+        }
+
+        // Tamaño del polígono en pixels
+        const nw = map.latLngToContainerPoint(bounds.getNorthWest());
+        const se = map.latLngToContainerPoint(bounds.getSouthEast());
+        const widthPx = Math.abs(se.x - nw.x);
+        const heightPx = Math.abs(se.y - nw.y);
+
+        const nombre = layer.feature.properties.nombre || '';
+        const textoAncho = nombre.length * 6.5 + 6;
+        const textoAlto = 14;
+
+        // Mostrar solo si el polígono visible aloja al texto y zoom no es muy bajo
+        const cabe = widthPx > textoAncho && heightPx > textoAlto;
+        const zoomOk = zoom >= 8;
+        el.style.display = (cabe && zoomOk) ? '' : 'none';
     });
 }
 

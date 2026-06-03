@@ -961,9 +961,8 @@ input, textarea, select { font-family: inherit; }
 
 .partido-label::before { display: none !important; }
 
-/* En zooms muy bajos esconder labels para no saturar */
-.leaflet-zoom-anim .partido-label,
-body.zoom-low .partido-label { opacity: 0; }
+/* Ocultar labels durante el zoom animation */
+.leaflet-zoom-anim .partido-label { opacity: 0; }
 
 /* Responsive */
 @media (max-width: 768px) {
