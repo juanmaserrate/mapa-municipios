@@ -276,24 +276,22 @@ function crearMarker(pin) {
     const clienteColor = cliente ? cliente.color : '#94a3b8';
 
     const html = `
-        <div class="pin-container">
-            <div class="pin-flag">
-                <div class="pin-flag-color" style="background:${clienteColor}"></div>
-                <div class="pin-flag-text">${escapeHtml(clienteNombre)}</div>
-            </div>
-            <div class="pin-stick"></div>
-            <div class="pin-head ${pin.estado}"></div>
-        </div>
+        <div class="pin-dot ${pin.estado}" style="border-color:${clienteColor}"></div>
     `;
 
     const icon = L.divIcon({
         html: html,
         className: 'custom-pin',
-        iconSize: [180, 60],
-        iconAnchor: [90, 60]
+        iconSize: [22, 22],
+        iconAnchor: [11, 11]
     });
 
     const marker = L.marker([pin.lat, pin.lng], { icon, riseOnHover: true });
+    marker.bindTooltip(`${escapeHtml(clienteNombre)} — ${escapeHtml(pin.municipio || 'Sin municipio')}`, {
+        direction: 'top',
+        offset: [0, -8],
+        className: 'pin-tooltip'
+    });
     marker.on('click', () => abrirDetallesPin(pin.id));
 
     return marker;
