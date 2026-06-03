@@ -261,29 +261,52 @@ function renderPines() {
     Object.values(state.markers).forEach(m => map.removeLayer(m));
     state.markers = {};
 
+    // Agrupar pines visibles por ubicación (precisión de 3 decimales = ~100m)
+    const grupos = {};
     state.pines.forEach(pin => {
         if (!pinPasaFiltros(pin)) return;
-        const marker = crearMarker(pin);
-        marker.addTo(map);
-        state.markers[pin.id] = marker;
+        const key = `${pin.lat.toFixed(3)},${pin.lng.toFixed(3)}`;
+        (grupos[key] = grupos[key] || []).push(pin);
+    });
+
+    Object.values(grupos).forEach(grupo => {
+        const offsets = calcularOffsetsGrupo(grupo.length);
+        grupo.forEach((pin, i) => {
+            const [dx, dy] = offsets[i];
+            const marker = crearMarker(pin, dx, dy);
+            marker.addTo(map);
+            state.markers[pin.id] = marker;
+        });
     });
     refrescarPartidos();
 }
 
-function crearMarker(pin) {
+function calcularOffsetsGrupo(n) {
+    // Devuelve offsets [dx, dy] en píxeles para no superponer los pines de la misma ubicación
+    if (n === 1) return [[0, 0]];
+    if (n === 2) return [[-13, 0], [13, 0]];
+    if (n === 3) return [[0, -14], [-13, 8], [13, 8]];
+    if (n === 4) return [[-13, -13], [13, -13], [-13, 13], [13, 13]];
+    // 5+: distribución circular
+    const r = 18;
+    return Array.from({ length: n }, (_, i) => {
+        const a = (2 * Math.PI * i) / n - Math.PI / 2;
+        return [r * Math.cos(a), r * Math.sin(a)];
+    });
+}
+
+function crearMarker(pin, offsetX = 0, offsetY = 0) {
     const cliente = state.clientes.find(c => c.id === pin.clienteId);
     const clienteNombre = cliente ? cliente.nombre : 'Sin cliente';
     const clienteColor = cliente ? cliente.color : '#94a3b8';
 
-    const html = `
-        <div class="pin-dot ${pin.estado}" style="border-color:${clienteColor}"></div>
-    `;
+    const html = `<div class="pin-dot ${pin.estado}" style="border-color:${clienteColor}"></div>`;
 
     const icon = L.divIcon({
         html: html,
         className: 'custom-pin',
         iconSize: [22, 22],
-        iconAnchor: [11, 11]
+        iconAnchor: [11 - offsetX, 11 - offsetY]
     });
 
     const marker = L.marker([pin.lat, pin.lng], { icon, riseOnHover: true });
