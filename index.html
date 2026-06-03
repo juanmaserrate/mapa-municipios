@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mapa Comercial - Municipios Buenos Aires</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="app">
+        <!-- Sidebar izquierdo -->
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">M</div>
+                    <div>
+                        <h1>Mapa Comercial</h1>
+                        <p>Municipios Buenos Aires</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="search-box">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="11" cy="11" r="8"/>
+                        <path d="m21 21-4.35-4.35"/>
+                    </svg>
+                    <input type="text" id="searchInput" placeholder="Buscar municipio o cliente...">
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <h3>Estados</h3>
+                <div class="status-filters">
+                    <label class="status-filter">
+                        <input type="checkbox" data-status="inscripto" checked>
+                        <span class="status-badge inscripto">
+                            <span class="status-dot"></span>
+                            Inscripto
+                        </span>
+                        <span class="count" id="count-inscripto">0</span>
+                    </label>
+                    <label class="status-filter">
+                        <input type="checkbox" data-status="concursando" checked>
+                        <span class="status-badge concursando">
+                            <span class="status-dot"></span>
+                            Concursando
+                        </span>
+                        <span class="count" id="count-concursando">0</span>
+                    </label>
+                    <label class="status-filter">
+                        <input type="checkbox" data-status="no-inscripto" checked>
+                        <span class="status-badge no-inscripto">
+                            <span class="status-dot"></span>
+                            No inscripto
+                        </span>
+                        <span class="count" id="count-no-inscripto">0</span>
+                    </label>
+                </div>
+            </div>
+
+            <div class="sidebar-section">
+                <div class="section-header">
+                    <h3>Clientes</h3>
+                    <button class="btn-icon" id="btnAddClient" title="Agregar cliente">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                    </button>
+                </div>
+                <div class="client-filters" id="clientFilters">
+                    <!-- Generado dinámicamente -->
+                </div>
+            </div>
+
+            <div class="sidebar-section sidebar-bottom">
+                <button class="btn-primary" id="btnAddPin">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    Nuevo pin en el mapa
+                </button>
+                <div class="actions-row">
+                    <button class="btn-secondary" id="btnExport" title="Exportar datos">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                        </svg>
+                        Exportar
+                    </button>
+                    <button class="btn-secondary" id="btnImport" title="Importar datos">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                        </svg>
+                        Importar
+                    </button>
+                    <input type="file" id="importFile" accept=".json" style="display:none">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Mapa principal -->
+        <main class="map-container">
+            <div id="map"></div>
+            <div class="map-overlay" id="mapOverlay" style="display:none">
+                <div class="overlay-message">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 22s8-10 8-14a8 8 0 0 0-16 0c0 4 8 14 8 14z"/>
+                        <circle cx="12" cy="8" r="3"/>
+                    </svg>
+                    Haz click en el mapa para colocar el pin
+                    <button class="btn-cancel" id="btnCancelAdd">Cancelar</button>
+                </div>
+            </div>
+        </main>
+
+        <!-- Panel de detalles (derecha) -->
+        <aside class="details-panel" id="detailsPanel">
+            <div class="details-header">
+                <button class="btn-close" id="btnCloseDetails">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+                <h2 id="detailsTitle">Detalle del pin</h2>
+            </div>
+
+            <form id="detailsForm" class="details-form">
+                <div class="form-group">
+                    <label>Municipio / Ubicación</label>
+                    <input type="text" id="fieldMunicipio" placeholder="Ej: Quilmes" required>
+                </div>
+
+                <div class="form-group">
+                    <label>Cliente</label>
+                    <select id="fieldCliente" required>
+                        <option value="">Seleccionar...</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Estado</label>
+                    <div class="status-selector">
+                        <label class="status-option">
+                            <input type="radio" name="estado" value="inscripto">
+                            <span class="status-badge inscripto">
+                                <span class="status-dot"></span> Inscripto
+                            </span>
+                        </label>
+                        <label class="status-option">
+                            <input type="radio" name="estado" value="concursando">
+                            <span class="status-badge concursando">
+                                <span class="status-dot"></span> Concursando
+                            </span>
+                        </label>
+                        <label class="status-option">
+                            <input type="radio" name="estado" value="no-inscripto">
+                            <span class="status-badge no-inscripto">
+                                <span class="status-dot"></span> No inscripto
+                            </span>
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Descripción</label>
+                    <textarea id="fieldDescripcion" rows="3" placeholder="Descripción general..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Notas internas</label>
+                    <textarea id="fieldNotas" rows="4" placeholder="Notas del área comercial..."></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label>Archivos adjuntos</label>
+                    <div class="files-area">
+                        <div class="files-list" id="filesList">
+                            <!-- Archivos cargados aparecen aquí -->
+                        </div>
+                        <label class="file-upload">
+                            <input type="file" id="fieldArchivo" multiple>
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/>
+                            </svg>
+                            Adjuntar archivos (PDF, imágenes, etc.)
+                        </label>
+                    </div>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-danger" id="btnDeletePin">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                        </svg>
+                        Eliminar
+                    </button>
+                    <button type="submit" class="btn-primary">Guardar</button>
+                </div>
+            </form>
+        </aside>
+    </div>
+
+    <!-- Modal: nuevo cliente -->
+    <div class="modal" id="modalClient" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Nuevo cliente</h2>
+                <button class="btn-close" id="btnCloseClientModal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="clientForm">
+                <div class="form-group">
+                    <label>Nombre del cliente</label>
+                    <input type="text" id="clientName" required placeholder="Ej: AILIEL">
+                </div>
+                <div class="form-group">
+                    <label>Color de identificación</label>
+                    <div class="color-picker" id="colorPicker">
+                        <label><input type="radio" name="color" value="#3b82f6" checked><span style="background:#3b82f6"></span></label>
+                        <label><input type="radio" name="color" value="#8b5cf6"><span style="background:#8b5cf6"></span></label>
+                        <label><input type="radio" name="color" value="#ec4899"><span style="background:#ec4899"></span></label>
+                        <label><input type="radio" name="color" value="#f97316"><span style="background:#f97316"></span></label>
+                        <label><input type="radio" name="color" value="#14b8a6"><span style="background:#14b8a6"></span></label>
+                        <label><input type="radio" name="color" value="#eab308"><span style="background:#eab308"></span></label>
+                        <label><input type="radio" name="color" value="#06b6d4"><span style="background:#06b6d4"></span></label>
+                        <label><input type="radio" name="color" value="#a855f7"><span style="background:#a855f7"></span></label>
+                    </div>
+                </div>
+                <div class="form-actions">
+                    <button type="button" class="btn-secondary" id="btnCancelClient">Cancelar</button>
+                    <button type="submit" class="btn-primary">Crear cliente</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Toast notifications -->
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="js/data.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
