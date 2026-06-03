@@ -120,7 +120,7 @@ function inicializarMapa() {
 let partidosLayer = null;
 
 function cargarPartidos() {
-    fetch('data/partidos-buenos-aires.geojson')
+    fetch('data/partidos-buenos-aires.geojson?v=2', { cache: 'no-cache' })
         .then(r => r.json())
         .then(geojson => {
             partidosLayer = L.geoJSON(geojson, {
