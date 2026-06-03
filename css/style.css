@@ -877,6 +877,20 @@ input, textarea, select { font-family: inherit; }
 
 .leaflet-popup-tip { background: var(--bg-darker); border: 1px solid var(--border); }
 
+/* Tooltip de partidos */
+.partido-tooltip {
+    background: var(--bg-darker) !important;
+    color: var(--text) !important;
+    border: 1px solid var(--border-light) !important;
+    border-radius: 6px !important;
+    padding: 4px 10px !important;
+    font-size: 12px !important;
+    font-weight: 600 !important;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4) !important;
+}
+
+.partido-tooltip::before { display: none !important; }
+
 /* Responsive */
 @media (max-width: 768px) {
     .app {

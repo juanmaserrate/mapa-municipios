@@ -91,15 +91,21 @@ function inicializarMapa() {
     map = L.map('map', {
         center: [-34.65, -58.55],
         zoom: 10,
-        zoomControl: true
+        zoomControl: true,
+        attributionControl: true
     });
 
-    // Tiles con tema oscuro (Carto)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO',
+    // Capa de fondo: muy minimalista, sin calles
+    // Usa solo el water/land background de Carto (sin labels ni calles)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO &copy; mgaitan/departamentos_argentina',
         subdomains: 'abcd',
-        maxZoom: 19
+        maxZoom: 19,
+        opacity: 0.35
     }).addTo(map);
+
+    // Cargar polígonos de partidos de Buenos Aires
+    cargarPartidos();
 
     map.on('click', (e) => {
         if (state.addingPin) {
@@ -107,6 +113,105 @@ function inicializarMapa() {
             toggleAddPinMode(false);
         }
     });
+}
+
+let partidosLayer = null;
+
+function cargarPartidos() {
+    fetch('data/partidos-buenos-aires.geojson')
+        .then(r => r.json())
+        .then(geojson => {
+            partidosLayer = L.geoJSON(geojson, {
+                style: (feature) => estiloPartido(feature, false),
+                onEachFeature: (feature, layer) => {
+                    const nombre = feature.properties.nombre || feature.properties.departamento;
+                    layer.bindTooltip(nombre, {
+                        permanent: false,
+                        direction: 'center',
+                        className: 'partido-tooltip',
+                        sticky: true
+                    });
+                    layer.on('mouseover', () => {
+                        layer.setStyle(estiloPartido(feature, true));
+                        layer.bringToFront();
+                    });
+                    layer.on('mouseout', () => {
+                        layer.setStyle(estiloPartido(feature, false));
+                    });
+                    layer.on('click', (e) => {
+                        if (state.addingPin) {
+                            const center = layer.getBounds().getCenter();
+                            crearPinEnUbicacionConMunicipio(center.lat, center.lng, nombre);
+                            toggleAddPinMode(false);
+                            L.DomEvent.stopPropagation(e);
+                        }
+                    });
+                }
+            });
+            partidosLayer.addTo(map);
+            partidosLayer.bringToBack();
+        })
+        .catch(err => {
+            console.error('Error cargando partidos:', err);
+            toast('No se pudo cargar el mapa de partidos', 'error');
+        });
+}
+
+function normalizar(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
+
+function estiloPartido(feature, hover) {
+    // Color de fondo: si hay pines del partido, color predominante; si no, gris oscuro
+    const nombre = normalizar(feature.properties.nombre);
+    const pinesPartido = state.pines.filter(p => {
+        if (!p.municipio) return false;
+        const muni = normalizar(p.municipio);
+        return (muni.includes(nombre) || nombre.includes(muni)) && pinPasaFiltros(p);
+    });
+
+    let fillColor = '#1e293b';
+    let estados = pinesPartido.map(p => p.estado);
+    if (estados.includes('inscripto')) fillColor = '#10b981';
+    else if (estados.includes('concursando')) fillColor = '#f59e0b';
+    else if (estados.includes('no-inscripto')) fillColor = '#ef4444';
+
+    return {
+        color: hover ? '#a5b4fc' : '#475569',
+        weight: hover ? 2 : 1,
+        opacity: hover ? 1 : 0.7,
+        fillColor: fillColor,
+        fillOpacity: hover ? 0.45 : (pinesPartido.length > 0 ? 0.25 : 0.08)
+    };
+}
+
+function refrescarPartidos() {
+    if (!partidosLayer) return;
+    partidosLayer.eachLayer(layer => {
+        layer.setStyle(estiloPartido(layer.feature, false));
+    });
+}
+
+function crearPinEnUbicacionConMunicipio(lat, lng, municipio) {
+    const nuevoPin = {
+        id: 'pin_' + Date.now(),
+        municipio: municipio || '',
+        clienteId: state.clientes[0]?.id || '',
+        estado: 'no-inscripto',
+        descripcion: '',
+        notas: '',
+        archivos: [],
+        lat: lat,
+        lng: lng,
+        creado: new Date().toISOString()
+    };
+    state.pines.push(nuevoPin);
+    guardarDatos();
+    renderPines();
+    abrirDetallesPin(nuevoPin.id);
+    actualizarContadores();
+    renderClientFilters();
+    refrescarPartidos();
 }
 
 function renderPines() {
@@ -120,6 +225,7 @@ function renderPines() {
         marker.addTo(map);
         state.markers[pin.id] = marker;
     });
+    refrescarPartidos();
 }
 
 function crearMarker(pin) {
