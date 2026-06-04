@@ -9,7 +9,7 @@ let state = {
     inscripciones: [],
     filtros: {
         busqueda: '',
-        estados: ['inscripto', 'por-iniciar', 'no-inscripto'],
+        estados: ['inscripto', 'por-iniciar'],
         clientes: []
     },
     selectedPartido: null,
