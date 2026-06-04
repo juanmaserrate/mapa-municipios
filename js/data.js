@@ -28,6 +28,10 @@ const INSCRIPCIONES_INICIALES = [
     { partido: 'San Isidro', clienteId: 'r14', estado: 'inscripto' },
     { partido: 'Escobar', clienteId: 'r14', estado: 'inscripto' },
     { partido: 'CABA', clienteId: 'r14', estado: 'inscripto' },
+    { partido: 'Presidente Peron', clienteId: 'r14', estado: 'por-iniciar' },
+    { partido: 'Ezeiza', clienteId: 'r14', estado: 'por-iniciar' },
+    { partido: 'Vicente Lopez', clienteId: 'r14', estado: 'por-iniciar' },
+    { partido: 'San Miguel', clienteId: 'r14', estado: 'por-iniciar' },
 
     // AILIEL
     { partido: 'Almirante Brown', clienteId: 'ailiel', estado: 'inscripto' },

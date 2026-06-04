@@ -26,12 +26,56 @@ let partidosLayer = null;
 
 window.addEventListener('DOMContentLoaded', () => {
     cargarDatos();
+    aplicarPatchesIniciales();
     inicializarMapa();
     renderClientFilters();
     actualizarContadores();
     bindUI();
     populateClientSelect();
 });
+
+// Patches que se aplican una vez por usuario (para sumar inscripciones nuevas sin tocar las existentes)
+const PATCHES = [
+    {
+        id: 'r14-por-iniciar-conurbano-2026-06',
+        items: [
+            { partido: 'Presidente Peron', clienteId: 'r14', estado: 'por-iniciar' },
+            { partido: 'Ezeiza', clienteId: 'r14', estado: 'por-iniciar' },
+            { partido: 'Vicente Lopez', clienteId: 'r14', estado: 'por-iniciar' },
+            { partido: 'San Miguel', clienteId: 'r14', estado: 'por-iniciar' }
+        ]
+    }
+];
+
+function aplicarPatchesIniciales() {
+    const aplicados = JSON.parse(localStorage.getItem('mapa_comercial_patches') || '[]');
+    let cambios = false;
+    PATCHES.forEach(patch => {
+        if (aplicados.includes(patch.id)) return;
+        patch.items.forEach(item => {
+            const existe = state.inscripciones.find(i =>
+                normalizar(i.partido) === normalizar(item.partido) &&
+                i.clienteId === item.clienteId
+            );
+            if (!existe) {
+                state.inscripciones.push({
+                    id: 'ins_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    partido: item.partido,
+                    clienteId: item.clienteId,
+                    estado: item.estado,
+                    descripcion: item.descripcion || '',
+                    notas: '',
+                    archivos: [],
+                    creado: new Date().toISOString()
+                });
+                cambios = true;
+            }
+        });
+        aplicados.push(patch.id);
+    });
+    localStorage.setItem('mapa_comercial_patches', JSON.stringify(aplicados));
+    if (cambios) guardarDatos();
+}
 
 function cargarDatos() {
     const saved = localStorage.getItem(STORAGE_KEY);
