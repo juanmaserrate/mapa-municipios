@@ -6,12 +6,12 @@
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
-    <title>Mapa Comercial - Municipios Buenos Aires</title>
+    <title>Mapa Comercial - Real Catorce</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css?v=3">
+    <link rel="stylesheet" href="css/style.css?v=4">
 </head>
 <body>
     <div class="app">
@@ -47,7 +47,7 @@
                         <circle cx="11" cy="11" r="8"/>
                         <path d="m21 21-4.35-4.35"/>
                     </svg>
-                    <input type="text" id="searchInput" placeholder="Buscar municipio o cliente...">
+                    <input type="text" id="searchInput" placeholder="Buscar municipio o sociedad...">
                 </div>
             </div>
 
@@ -63,12 +63,12 @@
                         <span class="count" id="count-inscripto">0</span>
                     </label>
                     <label class="status-filter">
-                        <input type="checkbox" data-status="concursando" checked>
-                        <span class="status-badge concursando">
+                        <input type="checkbox" data-status="por-iniciar" checked>
+                        <span class="status-badge por-iniciar">
                             <span class="status-dot"></span>
-                            Concursando
+                            Por iniciar
                         </span>
-                        <span class="count" id="count-concursando">0</span>
+                        <span class="count" id="count-por-iniciar">0</span>
                     </label>
                     <label class="status-filter">
                         <input type="checkbox" data-status="no-inscripto" checked>
@@ -83,8 +83,8 @@
 
             <div class="sidebar-section">
                 <div class="section-header">
-                    <h3>Clientes</h3>
-                    <button class="btn-icon" id="btnAddClient" title="Agregar cliente">
+                    <h3>Sociedades</h3>
+                    <button class="btn-icon" id="btnAddClient" title="Agregar sociedad">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                             <path d="M12 5v14M5 12h14"/>
                         </svg>
@@ -96,12 +96,6 @@
             </div>
 
             <div class="sidebar-section sidebar-bottom">
-                <button class="btn-primary" id="btnAddPin">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    Nuevo pin en el mapa
-                </button>
                 <div class="actions-row">
                     <button class="btn-secondary" id="btnExport" title="Exportar datos">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -123,19 +117,9 @@
         <!-- Mapa principal -->
         <main class="map-container">
             <div id="map"></div>
-            <div class="map-overlay" id="mapOverlay" style="display:none">
-                <div class="overlay-message">
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 22s8-10 8-14a8 8 0 0 0-16 0c0 4 8 14 8 14z"/>
-                        <circle cx="12" cy="8" r="3"/>
-                    </svg>
-                    Haz click en el mapa para colocar el pin
-                    <button class="btn-cancel" id="btnCancelAdd">Cancelar</button>
-                </div>
-            </div>
         </main>
 
-        <!-- Panel de detalles (derecha) -->
+        <!-- Panel de detalles del partido (derecha) -->
         <aside class="details-panel" id="detailsPanel">
             <div class="details-header">
                 <button class="btn-close" id="btnCloseDetails">
@@ -143,17 +127,38 @@
                         <path d="M18 6 6 18M6 6l12 12"/>
                     </svg>
                 </button>
-                <h2 id="detailsTitle">Detalle del pin</h2>
+                <h2 id="detailsTitle">Partido</h2>
             </div>
 
-            <form id="detailsForm" class="details-form">
-                <div class="form-group">
-                    <label>Municipio / Ubicación</label>
-                    <input type="text" id="fieldMunicipio" placeholder="Ej: Quilmes" required>
+            <div class="details-body">
+                <div id="inscripcionesList" class="inscripciones-list">
+                    <!-- Lista de sociedades inscriptas -->
                 </div>
 
+                <button class="btn-primary" id="btnAddInscripcion">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 5v14M5 12h14"/>
+                    </svg>
+                    Agregar sociedad a este partido
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Modal: nueva/editar inscripción -->
+    <div class="modal" id="modalInscripcion" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modalInscripcionTitle">Inscripción</h2>
+                <button class="btn-close" id="btnCloseInscripcionModal">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="inscripcionForm">
                 <div class="form-group">
-                    <label>Cliente</label>
+                    <label>Sociedad</label>
                     <select id="fieldCliente" required>
                         <option value="">Seleccionar...</option>
                     </select>
@@ -169,9 +174,9 @@
                             </span>
                         </label>
                         <label class="status-option">
-                            <input type="radio" name="estado" value="concursando">
-                            <span class="status-badge concursando">
-                                <span class="status-dot"></span> Concursando
+                            <input type="radio" name="estado" value="por-iniciar">
+                            <span class="status-badge por-iniciar">
+                                <span class="status-dot"></span> Por iniciar
                             </span>
                         </label>
                         <label class="status-option">
@@ -184,21 +189,19 @@
                 </div>
 
                 <div class="form-group">
-                    <label>Descripción</label>
-                    <textarea id="fieldDescripcion" rows="3" placeholder="Descripción general..."></textarea>
+                    <label>Razón / Descripción</label>
+                    <textarea id="fieldDescripcion" rows="2" placeholder="Razón del estado, observaciones..."></textarea>
                 </div>
 
                 <div class="form-group">
                     <label>Notas internas</label>
-                    <textarea id="fieldNotas" rows="4" placeholder="Notas del área comercial..."></textarea>
+                    <textarea id="fieldNotas" rows="3" placeholder="Notas del área comercial..."></textarea>
                 </div>
 
                 <div class="form-group">
                     <label>Archivos adjuntos</label>
                     <div class="files-area">
-                        <div class="files-list" id="filesList">
-                            <!-- Archivos cargados aparecen aquí -->
-                        </div>
+                        <div class="files-list" id="filesList"></div>
                         <label class="file-upload">
                             <input type="file" id="fieldArchivo" multiple>
                             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -210,23 +213,24 @@
                 </div>
 
                 <div class="form-actions">
-                    <button type="button" class="btn-danger" id="btnDeletePin">
+                    <button type="button" class="btn-danger" id="btnDeleteInscripcion" style="display:none">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
                         </svg>
                         Eliminar
                     </button>
+                    <button type="button" class="btn-secondary" id="btnCancelInscripcion">Cancelar</button>
                     <button type="submit" class="btn-primary">Guardar</button>
                 </div>
             </form>
-        </aside>
+        </div>
     </div>
 
-    <!-- Modal: nuevo cliente -->
+    <!-- Modal: nueva sociedad -->
     <div class="modal" id="modalClient" style="display:none">
         <div class="modal-content">
             <div class="modal-header">
-                <h2>Nuevo cliente</h2>
+                <h2>Nueva sociedad</h2>
                 <button class="btn-close" id="btnCloseClientModal">
                     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M18 6 6 18M6 6l12 12"/>
@@ -235,7 +239,7 @@
             </div>
             <form id="clientForm">
                 <div class="form-group">
-                    <label>Nombre del cliente</label>
+                    <label>Nombre de la sociedad</label>
                     <input type="text" id="clientName" required placeholder="Ej: AILIEL">
                 </div>
                 <div class="form-group">
@@ -253,7 +257,7 @@
                 </div>
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" id="btnCancelClient">Cancelar</button>
-                    <button type="submit" class="btn-primary">Crear cliente</button>
+                    <button type="submit" class="btn-primary">Crear sociedad</button>
                 </div>
             </form>
         </div>
@@ -263,7 +267,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/data.js?v=3"></script>
-    <script src="js/app.js?v=3"></script>
+    <script src="js/data.js?v=4"></script>
+    <script src="js/app.js?v=4"></script>
 </body>
 </html>

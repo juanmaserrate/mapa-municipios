@@ -1,24 +1,24 @@
 // ============================================================
-// Mapa Comercial - Lógica principal
+// Mapa Comercial - Real Catorce
 // ============================================================
 
 const STORAGE_KEY = 'mapa_comercial_data';
 
 let state = {
     clientes: [],
-    pines: [],
+    inscripciones: [],
     filtros: {
         busqueda: '',
-        estados: ['inscripto', 'concursando', 'no-inscripto'],
+        estados: ['inscripto', 'por-iniciar', 'no-inscripto'],
         clientes: []
     },
-    addingPin: false,
-    selectedPinId: null,
-    markers: {},
+    selectedPartido: null,
+    editingInscripcionId: null,
     archivosTemp: []
 };
 
 let map;
+let partidosLayer = null;
 
 // ============================================================
 // INICIALIZACIÓN
@@ -28,7 +28,6 @@ window.addEventListener('DOMContentLoaded', () => {
     cargarDatos();
     inicializarMapa();
     renderClientFilters();
-    renderPines();
     actualizarContadores();
     bindUI();
     populateClientSelect();
@@ -40,7 +39,24 @@ function cargarDatos() {
         try {
             const data = JSON.parse(saved);
             state.clientes = data.clientes || [];
-            state.pines = data.pines || [];
+            // Migración: pines (v1) → inscripciones (v2)
+            if (data.pines && !data.inscripciones) {
+                state.inscripciones = data.pines.map(p => ({
+                    id: p.id,
+                    partido: p.municipio,
+                    clienteId: p.clienteId,
+                    estado: p.estado === 'concursando' ? 'por-iniciar' : p.estado,
+                    descripcion: p.descripcion || '',
+                    notas: p.notas || '',
+                    archivos: p.archivos || []
+                })).filter(i => !esPartidoExcluido(i.partido));
+            } else {
+                state.inscripciones = (data.inscripciones || []).map(i => ({
+                    ...i,
+                    estado: i.estado === 'concursando' ? 'por-iniciar' : i.estado
+                }));
+            }
+            guardarDatos();
         } catch (e) {
             console.error('Error cargando datos:', e);
             cargarDatosIniciales();
@@ -53,22 +69,16 @@ function cargarDatos() {
 
 function cargarDatosIniciales() {
     state.clientes = [...CLIENTES_INICIALES];
-    state.pines = PINES_INICIALES.map((p, idx) => {
-        const muni = MUNICIPIOS_BA.find(m => m.nombre === p.municipio);
-        if (!muni) return null;
-        return {
-            id: 'pin_' + Date.now() + '_' + idx,
-            municipio: p.municipio,
-            clienteId: p.clienteId,
-            estado: p.estado,
-            descripcion: p.descripcion || '',
-            notas: '',
-            archivos: [],
-            lat: muni.lat,
-            lng: muni.lng,
-            creado: new Date().toISOString()
-        };
-    }).filter(Boolean);
+    state.inscripciones = INSCRIPCIONES_INICIALES.map((i, idx) => ({
+        id: 'ins_' + Date.now() + '_' + idx,
+        partido: i.partido,
+        clienteId: i.clienteId,
+        estado: i.estado,
+        descripcion: i.descripcion || '',
+        notas: '',
+        archivos: [],
+        creado: new Date().toISOString()
+    }));
     guardarDatos();
 }
 
@@ -76,11 +86,16 @@ function guardarDatos() {
     try {
         localStorage.setItem(STORAGE_KEY, JSON.stringify({
             clientes: state.clientes,
-            pines: state.pines
+            inscripciones: state.inscripciones
         }));
     } catch (e) {
         toast('Error: límite de almacenamiento alcanzado. Exporta y borra archivos pesados.', 'error');
     }
+}
+
+function esPartidoExcluido(nombre) {
+    const n = normalizar(nombre);
+    return PARTIDOS_EXCLUIDOS.some(p => n.includes(normalizar(p)));
 }
 
 // ============================================================
@@ -95,7 +110,6 @@ function inicializarMapa() {
         attributionControl: true
     });
 
-    // Capa de fondo: claro y minimalista (sin etiquetas, calles muy tenues)
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
         attribution: '&copy; OpenStreetMap &copy; CARTO &copy; mgaitan/departamentos_argentina',
         subdomains: 'abcd',
@@ -103,21 +117,10 @@ function inicializarMapa() {
         opacity: 0.55
     }).addTo(map);
 
-    // Mostrar/ocultar labels de partidos según el espacio disponible
-    map.on('zoomend moveend', actualizarLabelsPartidos);
-
-    // Cargar polígonos de partidos de Buenos Aires
     cargarPartidos();
 
-    map.on('click', (e) => {
-        if (state.addingPin) {
-            crearPinEnUbicacion(e.latlng.lat, e.latlng.lng);
-            toggleAddPinMode(false);
-        }
-    });
+    map.on('zoomend moveend', actualizarLabelsPartidos);
 }
-
-let partidosLayer = null;
 
 function cargarPartidos() {
     fetch('data/partidos-buenos-aires.geojson?v=2', { cache: 'no-cache' })
@@ -127,7 +130,6 @@ function cargarPartidos() {
                 style: (feature) => estiloPartido(feature, false),
                 onEachFeature: (feature, layer) => {
                     const nombre = feature.properties.nombre || feature.properties.departamento;
-                    // Label permanente en el centro del polígono
                     layer.bindTooltip(nombre, {
                         permanent: true,
                         direction: 'center',
@@ -138,17 +140,14 @@ function cargarPartidos() {
                     layer.on('mouseover', () => {
                         layer.setStyle(estiloPartido(feature, true));
                         layer.bringToFront();
+                        mostrarLeyendaPartido(nombre, layer);
                     });
                     layer.on('mouseout', () => {
                         layer.setStyle(estiloPartido(feature, false));
+                        ocultarLeyendaPartido();
                     });
-                    layer.on('click', (e) => {
-                        if (state.addingPin) {
-                            const center = layer.getBounds().getCenter();
-                            crearPinEnUbicacionConMunicipio(center.lat, center.lng, nombre);
-                            toggleAddPinMode(false);
-                            L.DomEvent.stopPropagation(e);
-                        }
+                    layer.on('click', () => {
+                        abrirPanelPartido(nombre);
                     });
                 }
             });
@@ -162,31 +161,66 @@ function cargarPartidos() {
         });
 }
 
-function normalizar(s) {
-    return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+function inscripcionesDelPartido(nombrePartido) {
+    const n = normalizar(nombrePartido);
+    return state.inscripciones.filter(i => {
+        const m = normalizar(i.partido);
+        return (m === n || m.includes(n) || n.includes(m)) && inscripcionPasaFiltros(i);
+    });
+}
+
+function inscripcionPasaFiltros(i) {
+    if (!state.filtros.estados.includes(i.estado)) return false;
+    if (!state.filtros.clientes.includes(i.clienteId)) return false;
+    if (state.filtros.busqueda) {
+        const q = state.filtros.busqueda.toLowerCase();
+        const cliente = state.clientes.find(c => c.id === i.clienteId);
+        const matchPart = i.partido.toLowerCase().includes(q);
+        const matchCliente = cliente && cliente.nombre.toLowerCase().includes(q);
+        const matchDesc = (i.descripcion || '').toLowerCase().includes(q);
+        const matchNotas = (i.notas || '').toLowerCase().includes(q);
+        if (!matchPart && !matchCliente && !matchDesc && !matchNotas) return false;
+    }
+    return true;
 }
 
 function estiloPartido(feature, hover) {
-    // Color de fondo: si hay pines del partido, color predominante; si no, gris oscuro
-    const nombre = normalizar(feature.properties.nombre);
-    const pinesPartido = state.pines.filter(p => {
-        if (!p.municipio) return false;
-        const muni = normalizar(p.municipio);
-        return (muni.includes(nombre) || nombre.includes(muni)) && pinPasaFiltros(p);
-    });
+    const nombre = feature.properties.nombre || '';
 
-    let fillColor = '#1e293b';
-    let estados = pinesPartido.map(p => p.estado);
-    if (estados.includes('inscripto')) fillColor = '#10b981';
-    else if (estados.includes('concursando')) fillColor = '#f59e0b';
-    else if (estados.includes('no-inscripto')) fillColor = '#ef4444';
+    // No colorear partidos excluidos (PBAC, BAC, etc.)
+    if (esPartidoExcluido(nombre)) {
+        return {
+            color: '#cbd5e1',
+            weight: hover ? 1.5 : 1,
+            opacity: 0.6,
+            fillColor: '#f1f5f9',
+            fillOpacity: 0.3
+        };
+    }
+
+    const inscripciones = inscripcionesDelPartido(nombre);
+    const estados = inscripciones.map(i => i.estado);
+
+    // Prioridad: inscripto > por-iniciar > no-inscripto > vacío
+    let fillColor = '#e2e8f0';
+    let fillOpacity = hover ? 0.55 : 0.18;
+    if (estados.includes('inscripto')) {
+        fillColor = '#10b981';
+        fillOpacity = hover ? 0.6 : 0.42;
+    } else if (estados.includes('por-iniciar')) {
+        fillColor = '#f59e0b';
+        fillOpacity = hover ? 0.6 : 0.42;
+    } else if (estados.includes('no-inscripto')) {
+        fillColor = '#ef4444';
+        fillOpacity = hover ? 0.55 : 0.35;
+    }
 
     return {
-        color: hover ? '#a5b4fc' : '#475569',
+        color: hover ? '#1e293b' : '#64748b',
         weight: hover ? 2 : 1,
-        opacity: hover ? 1 : 0.7,
+        opacity: hover ? 1 : 0.55,
         fillColor: fillColor,
-        fillOpacity: hover ? 0.45 : (pinesPartido.length > 0 ? 0.25 : 0.08)
+        fillOpacity: fillOpacity
     };
 }
 
@@ -197,7 +231,6 @@ function refrescarPartidos() {
     });
 }
 
-// Muestra el label solo si entra en el polígono visible y el zoom es suficiente
 function actualizarLabelsPartidos() {
     if (!partidosLayer) return;
     const zoom = map.getZoom();
@@ -210,14 +243,11 @@ function actualizarLabelsPartidos() {
         if (!el) return;
 
         const bounds = layer.getBounds();
-
-        // Fuera de la vista: ocultar
         if (!mapBounds.intersects(bounds)) {
             el.style.display = 'none';
             return;
         }
 
-        // Tamaño del polígono en pixels
         const nw = map.latLngToContainerPoint(bounds.getNorthWest());
         const se = map.latLngToContainerPoint(bounds.getSouthEast());
         const widthPx = Math.abs(se.x - nw.x);
@@ -226,126 +256,240 @@ function actualizarLabelsPartidos() {
         const nombre = layer.feature.properties.nombre || '';
         const textoAncho = nombre.length * 6.5 + 6;
         const textoAlto = 14;
-
-        // Mostrar solo si el polígono visible aloja al texto y zoom no es muy bajo
         const cabe = widthPx > textoAncho && heightPx > textoAlto;
         const zoomOk = zoom >= 8;
         el.style.display = (cabe && zoomOk) ? '' : 'none';
     });
 }
 
-function crearPinEnUbicacionConMunicipio(lat, lng, municipio) {
-    const nuevoPin = {
-        id: 'pin_' + Date.now(),
-        municipio: municipio || '',
-        clienteId: state.clientes[0]?.id || '',
-        estado: 'no-inscripto',
-        descripcion: '',
-        notas: '',
-        archivos: [],
-        lat: lat,
-        lng: lng,
-        creado: new Date().toISOString()
-    };
-    state.pines.push(nuevoPin);
-    guardarDatos();
-    renderPines();
-    abrirDetallesPin(nuevoPin.id);
-    actualizarContadores();
-    renderClientFilters();
-    refrescarPartidos();
-}
+// ============================================================
+// LEYENDA (TOOLTIP RICO) AL HOVER
+// ============================================================
 
-function renderPines() {
-    // Limpiar markers existentes
-    Object.values(state.markers).forEach(m => map.removeLayer(m));
-    state.markers = {};
+function mostrarLeyendaPartido(nombre, layer) {
+    if (esPartidoExcluido(nombre)) return;
 
-    // Agrupar pines visibles por ubicación (precisión de 3 decimales = ~100m)
-    const grupos = {};
-    state.pines.forEach(pin => {
-        if (!pinPasaFiltros(pin)) return;
-        const key = `${pin.lat.toFixed(3)},${pin.lng.toFixed(3)}`;
-        (grupos[key] = grupos[key] || []).push(pin);
-    });
+    const insc = inscripcionesDelPartido(nombre);
+    const el = document.getElementById('leyendaPartido') || crearLeyendaEl();
 
-    Object.values(grupos).forEach(grupo => {
-        const offsets = calcularOffsetsGrupo(grupo.length);
-        grupo.forEach((pin, i) => {
-            const [dx, dy] = offsets[i];
-            const marker = crearMarker(pin, dx, dy);
-            marker.addTo(map);
-            state.markers[pin.id] = marker;
+    let html = `<div class="leyenda-titulo">${escapeHtml(nombre)}</div>`;
+    if (insc.length === 0) {
+        html += `<div class="leyenda-vacio">Sin sociedades registradas</div>`;
+    } else {
+        html += '<div class="leyenda-lista">';
+        insc.forEach(i => {
+            const cliente = state.clientes.find(c => c.id === i.clienteId);
+            const nombreCli = cliente ? cliente.nombre : 'Sin sociedad';
+            const colorCli = cliente ? cliente.color : '#94a3b8';
+            const razon = i.descripcion ? ` · ${escapeHtml(i.descripcion)}` : '';
+            html += `
+                <div class="leyenda-item">
+                    <span class="leyenda-color" style="background:${colorCli}"></span>
+                    <span class="leyenda-cliente">${escapeHtml(nombreCli)}</span>
+                    <span class="status-badge ${i.estado}">${textoEstado(i.estado)}</span>
+                    ${razon ? `<span class="leyenda-razon">${razon}</span>` : ''}
+                </div>
+            `;
         });
-    });
-    refrescarPartidos();
-}
-
-function calcularOffsetsGrupo(n) {
-    // Devuelve offsets [dx, dy] en píxeles para no superponer los pines de la misma ubicación
-    if (n === 1) return [[0, 0]];
-    if (n === 2) return [[-13, 0], [13, 0]];
-    if (n === 3) return [[0, -14], [-13, 8], [13, 8]];
-    if (n === 4) return [[-13, -13], [13, -13], [-13, 13], [13, 13]];
-    // 5+: distribución circular
-    const r = 18;
-    return Array.from({ length: n }, (_, i) => {
-        const a = (2 * Math.PI * i) / n - Math.PI / 2;
-        return [r * Math.cos(a), r * Math.sin(a)];
-    });
-}
-
-function crearMarker(pin, offsetX = 0, offsetY = 0) {
-    const cliente = state.clientes.find(c => c.id === pin.clienteId);
-    const clienteNombre = cliente ? cliente.nombre : 'Sin cliente';
-    const clienteColor = cliente ? cliente.color : '#94a3b8';
-
-    const html = `<div class="pin-dot ${pin.estado}" style="border-color:${clienteColor}"></div>`;
-
-    const icon = L.divIcon({
-        html: html,
-        className: 'custom-pin',
-        iconSize: [22, 22],
-        iconAnchor: [11 - offsetX, 11 - offsetY]
-    });
-
-    const marker = L.marker([pin.lat, pin.lng], { icon, riseOnHover: true });
-    marker.bindTooltip(`${escapeHtml(clienteNombre)} — ${escapeHtml(pin.municipio || 'Sin municipio')}`, {
-        direction: 'top',
-        offset: [0, -8],
-        className: 'pin-tooltip'
-    });
-    marker.on('click', () => abrirDetallesPin(pin.id));
-
-    return marker;
-}
-
-function pinPasaFiltros(pin) {
-    if (!state.filtros.estados.includes(pin.estado)) return false;
-    if (!state.filtros.clientes.includes(pin.clienteId)) return false;
-
-    if (state.filtros.busqueda) {
-        const q = state.filtros.busqueda.toLowerCase();
-        const cliente = state.clientes.find(c => c.id === pin.clienteId);
-        const matchMuni = pin.municipio.toLowerCase().includes(q);
-        const matchCliente = cliente && cliente.nombre.toLowerCase().includes(q);
-        const matchDesc = (pin.descripcion || '').toLowerCase().includes(q);
-        const matchNotas = (pin.notas || '').toLowerCase().includes(q);
-        if (!matchMuni && !matchCliente && !matchDesc && !matchNotas) return false;
+        html += '</div>';
     }
-    return true;
+    html += `<div class="leyenda-hint">Click para ver / editar</div>`;
+    el.innerHTML = html;
+    el.style.display = 'block';
+}
+
+function ocultarLeyendaPartido() {
+    const el = document.getElementById('leyendaPartido');
+    if (el) el.style.display = 'none';
+}
+
+function crearLeyendaEl() {
+    const el = document.createElement('div');
+    el.id = 'leyendaPartido';
+    el.className = 'leyenda-partido';
+    document.querySelector('.map-container').appendChild(el);
+    // Mover el tooltip con el mouse
+    document.getElementById('map').addEventListener('mousemove', (e) => {
+        if (el.style.display === 'block') {
+            const rect = document.querySelector('.map-container').getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            const elW = el.offsetWidth;
+            const elH = el.offsetHeight;
+            let left = x + 14;
+            let top = y + 14;
+            if (left + elW > rect.width) left = x - elW - 14;
+            if (top + elH > rect.height) top = y - elH - 14;
+            el.style.left = left + 'px';
+            el.style.top = top + 'px';
+        }
+    });
+    return el;
+}
+
+function textoEstado(e) {
+    if (e === 'inscripto') return 'Inscripto';
+    if (e === 'por-iniciar') return 'Por iniciar';
+    if (e === 'no-inscripto') return 'No inscripto';
+    return e;
 }
 
 // ============================================================
-// SIDEBAR FILTERS
+// PANEL PARTIDO (CLICK)
+// ============================================================
+
+function abrirPanelPartido(nombrePartido) {
+    if (esPartidoExcluido(nombrePartido)) {
+        toast('Este organismo no se gestiona por partido', 'warning');
+        return;
+    }
+    state.selectedPartido = nombrePartido;
+    document.getElementById('detailsTitle').textContent = nombrePartido;
+    renderInscripcionesList();
+    document.getElementById('detailsPanel').classList.add('open');
+}
+
+function cerrarPanel() {
+    document.getElementById('detailsPanel').classList.remove('open');
+    state.selectedPartido = null;
+}
+
+function renderInscripcionesList() {
+    const container = document.getElementById('inscripcionesList');
+    container.innerHTML = '';
+    if (!state.selectedPartido) return;
+
+    const insc = state.inscripciones.filter(i => normalizar(i.partido) === normalizar(state.selectedPartido));
+    if (insc.length === 0) {
+        container.innerHTML = '<div class="empty-state">Sin sociedades en este partido todavía.</div>';
+        return;
+    }
+
+    insc.forEach(i => {
+        const cliente = state.clientes.find(c => c.id === i.clienteId);
+        const nombreCli = cliente ? cliente.nombre : 'Sin sociedad';
+        const colorCli = cliente ? cliente.color : '#94a3b8';
+        const card = document.createElement('div');
+        card.className = 'inscripcion-card';
+        card.innerHTML = `
+            <div class="inscripcion-header">
+                <span class="inscripcion-color" style="background:${colorCli}"></span>
+                <span class="inscripcion-cliente">${escapeHtml(nombreCli)}</span>
+                <span class="status-badge ${i.estado}">
+                    <span class="status-dot"></span>${textoEstado(i.estado)}
+                </span>
+            </div>
+            ${i.descripcion ? `<div class="inscripcion-desc"><strong>Razón:</strong> ${escapeHtml(i.descripcion)}</div>` : ''}
+            ${i.notas ? `<div class="inscripcion-notas">${escapeHtml(i.notas)}</div>` : ''}
+            ${i.archivos && i.archivos.length ? `<div class="inscripcion-archivos">📎 ${i.archivos.length} archivo${i.archivos.length>1?'s':''}</div>` : ''}
+            <div class="inscripcion-actions">
+                <button class="btn-secondary" data-action="editar">Editar</button>
+            </div>
+        `;
+        card.querySelector('[data-action="editar"]').addEventListener('click', () => abrirModalInscripcion(i.id));
+        container.appendChild(card);
+    });
+}
+
+// ============================================================
+// MODAL INSCRIPCIÓN (NUEVA / EDITAR)
+// ============================================================
+
+function abrirModalInscripcion(inscripcionId = null) {
+    state.editingInscripcionId = inscripcionId;
+    populateClientSelect();
+    state.archivosTemp = [];
+
+    if (inscripcionId) {
+        const i = state.inscripciones.find(x => x.id === inscripcionId);
+        if (!i) return;
+        document.getElementById('modalInscripcionTitle').textContent = 'Editar inscripción';
+        document.getElementById('fieldCliente').value = i.clienteId;
+        document.querySelectorAll('input[name="estado"]').forEach(r => r.checked = r.value === i.estado);
+        document.getElementById('fieldDescripcion').value = i.descripcion || '';
+        document.getElementById('fieldNotas').value = i.notas || '';
+        state.archivosTemp = [...(i.archivos || [])];
+        document.getElementById('btnDeleteInscripcion').style.display = '';
+    } else {
+        document.getElementById('modalInscripcionTitle').textContent = `Nueva inscripción · ${state.selectedPartido}`;
+        document.getElementById('fieldCliente').value = '';
+        document.querySelectorAll('input[name="estado"]').forEach(r => r.checked = r.value === 'no-inscripto');
+        document.getElementById('fieldDescripcion').value = '';
+        document.getElementById('fieldNotas').value = '';
+        document.getElementById('btnDeleteInscripcion').style.display = 'none';
+    }
+    renderArchivos();
+    document.getElementById('modalInscripcion').style.display = 'flex';
+}
+
+function cerrarModalInscripcion() {
+    document.getElementById('modalInscripcion').style.display = 'none';
+    state.editingInscripcionId = null;
+    state.archivosTemp = [];
+}
+
+function guardarInscripcion(e) {
+    e.preventDefault();
+    const clienteId = document.getElementById('fieldCliente').value;
+    const estadoEl = document.querySelector('input[name="estado"]:checked');
+    if (!clienteId) { toast('Seleccioná una sociedad', 'error'); return; }
+    if (!estadoEl) { toast('Seleccioná un estado', 'error'); return; }
+    const descripcion = document.getElementById('fieldDescripcion').value.trim();
+    const notas = document.getElementById('fieldNotas').value.trim();
+
+    if (state.editingInscripcionId) {
+        const i = state.inscripciones.find(x => x.id === state.editingInscripcionId);
+        if (i) {
+            i.clienteId = clienteId;
+            i.estado = estadoEl.value;
+            i.descripcion = descripcion;
+            i.notas = notas;
+            i.archivos = [...state.archivosTemp];
+            i.actualizado = new Date().toISOString();
+        }
+    } else {
+        state.inscripciones.push({
+            id: 'ins_' + Date.now(),
+            partido: state.selectedPartido,
+            clienteId: clienteId,
+            estado: estadoEl.value,
+            descripcion: descripcion,
+            notas: notas,
+            archivos: [...state.archivosTemp],
+            creado: new Date().toISOString()
+        });
+    }
+    guardarDatos();
+    refrescarPartidos();
+    actualizarContadores();
+    renderClientFilters();
+    renderInscripcionesList();
+    cerrarModalInscripcion();
+    toast('Guardado', 'success');
+}
+
+function eliminarInscripcionActual() {
+    if (!state.editingInscripcionId) return;
+    if (!confirm('¿Eliminar esta inscripción?')) return;
+    state.inscripciones = state.inscripciones.filter(i => i.id !== state.editingInscripcionId);
+    guardarDatos();
+    refrescarPartidos();
+    actualizarContadores();
+    renderClientFilters();
+    renderInscripcionesList();
+    cerrarModalInscripcion();
+    toast('Inscripción eliminada', 'success');
+}
+
+// ============================================================
+// SIDEBAR
 // ============================================================
 
 function renderClientFilters() {
     const container = document.getElementById('clientFilters');
     container.innerHTML = '';
-
     state.clientes.forEach(cliente => {
-        const count = state.pines.filter(p => p.clienteId === cliente.id).length;
+        const count = state.inscripciones.filter(i => i.clienteId === cliente.id).length;
         const checked = state.filtros.clientes.includes(cliente.id);
         const row = document.createElement('label');
         row.className = 'client-filter';
@@ -362,17 +506,17 @@ function renderClientFilters() {
             } else {
                 state.filtros.clientes = state.filtros.clientes.filter(c => c !== id);
             }
-            renderPines();
+            refrescarPartidos();
         });
         container.appendChild(row);
     });
 }
 
 function actualizarContadores() {
-    const counts = { inscripto: 0, concursando: 0, 'no-inscripto': 0 };
-    state.pines.forEach(p => { if (counts[p.estado] !== undefined) counts[p.estado]++; });
+    const counts = { inscripto: 0, 'por-iniciar': 0, 'no-inscripto': 0 };
+    state.inscripciones.forEach(i => { if (counts[i.estado] !== undefined) counts[i.estado]++; });
     document.getElementById('count-inscripto').textContent = counts.inscripto;
-    document.getElementById('count-concursando').textContent = counts.concursando;
+    document.getElementById('count-por-iniciar').textContent = counts['por-iniciar'];
     document.getElementById('count-no-inscripto').textContent = counts['no-inscripto'];
 }
 
@@ -394,13 +538,11 @@ function populateClientSelect() {
 // ============================================================
 
 function bindUI() {
-    // Búsqueda
     document.getElementById('searchInput').addEventListener('input', (e) => {
         state.filtros.busqueda = e.target.value;
-        renderPines();
+        refrescarPartidos();
     });
 
-    // Filtros de estado
     document.querySelectorAll('[data-status]').forEach(cb => {
         cb.addEventListener('change', (e) => {
             const status = e.target.dataset.status;
@@ -409,29 +551,24 @@ function bindUI() {
             } else {
                 state.filtros.estados = state.filtros.estados.filter(s => s !== status);
             }
-            renderPines();
+            refrescarPartidos();
         });
     });
 
-    // Botón agregar pin
-    document.getElementById('btnAddPin').addEventListener('click', () => toggleAddPinMode(true));
-    document.getElementById('btnCancelAdd').addEventListener('click', () => toggleAddPinMode(false));
+    document.getElementById('btnCloseDetails').addEventListener('click', cerrarPanel);
+    document.getElementById('btnAddInscripcion').addEventListener('click', () => abrirModalInscripcion(null));
 
-    // Detalles panel
-    document.getElementById('btnCloseDetails').addEventListener('click', cerrarDetalles);
-    document.getElementById('detailsForm').addEventListener('submit', guardarPin);
-    document.getElementById('btnDeletePin').addEventListener('click', eliminarPinActual);
-
-    // Archivos
+    document.getElementById('inscripcionForm').addEventListener('submit', guardarInscripcion);
+    document.getElementById('btnDeleteInscripcion').addEventListener('click', eliminarInscripcionActual);
+    document.getElementById('btnCloseInscripcionModal').addEventListener('click', cerrarModalInscripcion);
+    document.getElementById('btnCancelInscripcion').addEventListener('click', cerrarModalInscripcion);
     document.getElementById('fieldArchivo').addEventListener('change', cargarArchivos);
 
-    // Modal cliente
     document.getElementById('btnAddClient').addEventListener('click', abrirModalCliente);
     document.getElementById('btnCloseClientModal').addEventListener('click', cerrarModalCliente);
     document.getElementById('btnCancelClient').addEventListener('click', cerrarModalCliente);
     document.getElementById('clientForm').addEventListener('submit', crearCliente);
 
-    // Colapsar/expandir sidebar
     document.getElementById('btnCollapseSidebar').addEventListener('click', () => {
         document.querySelector('.app').classList.add('sidebar-collapsed');
         setTimeout(() => map.invalidateSize(), 260);
@@ -441,107 +578,9 @@ function bindUI() {
         setTimeout(() => map.invalidateSize(), 260);
     });
 
-    // Export/Import
     document.getElementById('btnExport').addEventListener('click', exportarDatos);
-    document.getElementById('btnImport').addEventListener('click', () => {
-        document.getElementById('importFile').click();
-    });
+    document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importarDatos);
-}
-
-function toggleAddPinMode(active) {
-    state.addingPin = active;
-    document.getElementById('mapOverlay').style.display = active ? 'flex' : 'none';
-    document.getElementById('map').style.cursor = active ? 'crosshair' : '';
-}
-
-// ============================================================
-// PIN CRUD
-// ============================================================
-
-function crearPinEnUbicacion(lat, lng) {
-    const nuevoPin = {
-        id: 'pin_' + Date.now(),
-        municipio: '',
-        clienteId: state.clientes[0]?.id || '',
-        estado: 'no-inscripto',
-        descripcion: '',
-        notas: '',
-        archivos: [],
-        lat: lat,
-        lng: lng,
-        creado: new Date().toISOString()
-    };
-    state.pines.push(nuevoPin);
-    guardarDatos();
-    renderPines();
-    abrirDetallesPin(nuevoPin.id);
-    actualizarContadores();
-    renderClientFilters();
-}
-
-function abrirDetallesPin(pinId) {
-    const pin = state.pines.find(p => p.id === pinId);
-    if (!pin) return;
-
-    state.selectedPinId = pinId;
-    state.archivosTemp = [...(pin.archivos || [])];
-
-    document.getElementById('fieldMunicipio').value = pin.municipio || '';
-    document.getElementById('fieldCliente').value = pin.clienteId || '';
-    document.querySelectorAll('input[name="estado"]').forEach(r => {
-        r.checked = r.value === pin.estado;
-    });
-    document.getElementById('fieldDescripcion').value = pin.descripcion || '';
-    document.getElementById('fieldNotas').value = pin.notas || '';
-    document.getElementById('detailsTitle').textContent = pin.municipio || 'Nuevo pin';
-
-    renderArchivos();
-
-    document.getElementById('detailsPanel').classList.add('open');
-
-    // Centrar mapa en el pin
-    map.setView([pin.lat, pin.lng], Math.max(map.getZoom(), 12), { animate: true });
-}
-
-function cerrarDetalles() {
-    document.getElementById('detailsPanel').classList.remove('open');
-    state.selectedPinId = null;
-    state.archivosTemp = [];
-}
-
-function guardarPin(e) {
-    e.preventDefault();
-    const pin = state.pines.find(p => p.id === state.selectedPinId);
-    if (!pin) return;
-
-    pin.municipio = document.getElementById('fieldMunicipio').value.trim();
-    pin.clienteId = document.getElementById('fieldCliente').value;
-    const estadoEl = document.querySelector('input[name="estado"]:checked');
-    pin.estado = estadoEl ? estadoEl.value : 'no-inscripto';
-    pin.descripcion = document.getElementById('fieldDescripcion').value.trim();
-    pin.notas = document.getElementById('fieldNotas').value.trim();
-    pin.archivos = [...state.archivosTemp];
-    pin.actualizado = new Date().toISOString();
-
-    guardarDatos();
-    renderPines();
-    actualizarContadores();
-    renderClientFilters();
-    cerrarDetalles();
-    toast('Pin guardado correctamente', 'success');
-}
-
-function eliminarPinActual() {
-    if (!state.selectedPinId) return;
-    if (!confirm('¿Eliminar este pin? Esta acción no se puede deshacer.')) return;
-    state.pines = state.pines.filter(p => p.id !== state.selectedPinId);
-    guardarDatos();
-    renderPines();
-    actualizarContadores();
-    renderClientFilters();
-    cerrarDetalles();
-    toast('Pin eliminado', 'success');
 }
 
 // ============================================================
@@ -613,7 +652,6 @@ function verArchivo(file) {
             win.document.write(`<body style="margin:0"><embed src="${file.data}" style="width:100vw;height:100vh" type="application/pdf"></body>`);
         }
     } else {
-        // Descargar
         const a = document.createElement('a');
         a.href = file.data;
         a.download = file.nombre;
@@ -622,7 +660,7 @@ function verArchivo(file) {
 }
 
 // ============================================================
-// CLIENTES
+// SOCIEDADES (CLIENTES)
 // ============================================================
 
 function abrirModalCliente() {
@@ -640,7 +678,6 @@ function crearCliente(e) {
     const nombre = document.getElementById('clientName').value.trim();
     const color = document.querySelector('input[name="color"]:checked').value;
     if (!nombre) return;
-
     const id = nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '_' + Date.now().toString(36);
     state.clientes.push({ id, nombre, color });
     state.filtros.clientes.push(id);
@@ -648,7 +685,7 @@ function crearCliente(e) {
     renderClientFilters();
     populateClientSelect();
     cerrarModalCliente();
-    toast(`Cliente "${nombre}" creado`, 'success');
+    toast(`Sociedad "${nombre}" creada`, 'success');
 }
 
 // ============================================================
@@ -657,10 +694,10 @@ function crearCliente(e) {
 
 function exportarDatos() {
     const data = {
-        version: '1.0',
+        version: '2.0',
         exportado: new Date().toISOString(),
         clientes: state.clientes,
-        pines: state.pines
+        inscripciones: state.inscripciones
     };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -679,17 +716,22 @@ function importarDatos(e) {
     reader.onload = (event) => {
         try {
             const data = JSON.parse(event.target.result);
-            if (!data.clientes || !data.pines) throw new Error('Formato inválido');
-            if (!confirm(`Importar ${data.pines.length} pines y ${data.clientes.length} clientes? Esto reemplazará los datos actuales.`)) return;
+            const inscripciones = data.inscripciones || (data.pines || []).map(p => ({
+                id: p.id, partido: p.municipio, clienteId: p.clienteId,
+                estado: p.estado === 'concursando' ? 'por-iniciar' : p.estado,
+                descripcion: p.descripcion || '', notas: p.notas || '', archivos: p.archivos || []
+            }));
+            if (!data.clientes || !inscripciones) throw new Error('Formato inválido');
+            if (!confirm(`Importar ${inscripciones.length} inscripciones y ${data.clientes.length} sociedades? Reemplaza los datos actuales.`)) return;
             state.clientes = data.clientes;
-            state.pines = data.pines;
+            state.inscripciones = inscripciones.filter(i => !esPartidoExcluido(i.partido));
             state.filtros.clientes = state.clientes.map(c => c.id);
             guardarDatos();
             renderClientFilters();
             populateClientSelect();
-            renderPines();
+            refrescarPartidos();
             actualizarContadores();
-            toast('Datos importados correctamente', 'success');
+            toast('Datos importados', 'success');
         } catch (err) {
             toast('Error al importar: archivo inválido', 'error');
         }
@@ -701,6 +743,10 @@ function importarDatos(e) {
 // ============================================================
 // UTILS
 // ============================================================
+
+function normalizar(s) {
+    return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
+}
 
 function escapeHtml(str) {
     if (!str) return '';
