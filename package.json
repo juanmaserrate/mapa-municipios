@@ -1,0 +1,15 @@
+{
+  "name": "mapa-municipios",
+  "version": "1.0.0",
+  "description": "Mapa Comercial - Real Catorce - Municipios Buenos Aires",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
