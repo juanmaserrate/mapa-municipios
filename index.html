@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css?v=8">
+    <link rel="stylesheet" href="css/style.css?v=9">
 </head>
 <body>
     <div class="app">
@@ -42,12 +42,20 @@
             </div>
 
             <div class="sidebar-section">
-                <div class="search-box">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <circle cx="11" cy="11" r="8"/>
-                        <path d="m21 21-4.35-4.35"/>
-                    </svg>
-                    <input type="text" id="searchInput" placeholder="Buscar municipio o sociedad...">
+                <div class="search-wrap">
+                    <div class="search-box">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="11" cy="11" r="8"/>
+                            <path d="m21 21-4.35-4.35"/>
+                        </svg>
+                        <input type="text" id="searchInput" placeholder="Buscar municipio o sociedad..." autocomplete="off">
+                        <button class="search-clear" id="btnClearSearch" title="Limpiar" style="display:none">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                                <path d="M18 6 6 18M6 6l12 12"/>
+                            </svg>
+                        </button>
+                    </div>
+                    <div class="search-results" id="searchResults" style="display:none"></div>
                 </div>
             </div>
 
@@ -353,7 +361,7 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/data.js?v=8"></script>
-    <script src="js/app.js?v=8"></script>
+    <script src="js/data.js?v=9"></script>
+    <script src="js/app.js?v=9"></script>
 </body>
 </html>

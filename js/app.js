@@ -20,6 +20,9 @@ let state = {
 
 let map;
 let partidosLayer = null;
+let nombresPartidos = [];
+let partidoDestacado = null;
+let timerDestaque = null;
 
 // ============================================================
 // INICIALIZACIÓN
@@ -309,11 +312,16 @@ function cargarPartidos() {
                     });
                     layer.on('click', () => {
                         abrirPanelPartido(nombre);
+                        destacarPartido(layer);
                     });
                 }
             });
             partidosLayer.addTo(map);
             partidosLayer.bringToBack();
+            nombresPartidos = geojson.features
+                .map(f => f.properties.nombre || f.properties.departamento)
+                .filter(n => n && !esPartidoExcluido(n))
+                .sort((a, b) => a.localeCompare(b, 'es'));
             actualizarLabelsPartidos();
         })
         .catch(err => {
@@ -540,6 +548,7 @@ function abrirPanelPartido(nombrePartido) {
 function cerrarPanel() {
     document.getElementById('detailsPanel').classList.remove('open');
     state.selectedPartido = null;
+    limpiarDestaque();
 }
 
 function renderMetaInscripcion(i) {
@@ -855,15 +864,161 @@ function renderListaVencimientos() {
     });
 }
 
-function centrarEnPartido(nombre) {
-    if (!partidosLayer) return;
+// ============================================================
+// VUELO CINEMATICO Y RESALTADO DE PARTIDO
+// ============================================================
+
+function buscarLayerPartido(nombre) {
+    if (!partidosLayer) return null;
     const n = normalizar(nombre);
+    let exacto = null;
+    let parcial = null;
     partidosLayer.eachLayer(layer => {
         const nom = normalizar(layer.feature.properties.nombre || '');
-        if (nom === n || nom.includes(n) || n.includes(nom)) {
-            map.fitBounds(layer.getBounds(), { maxZoom: 11, padding: [40, 40] });
-        }
+        if (nom === n) exacto = layer;
+        else if (!parcial && (nom.includes(n) || n.includes(nom))) parcial = layer;
     });
+    return exacto || parcial;
+}
+
+// Vuela hasta el partido con animacion y le resalta los bordes
+function volarAPartido(nombre, opts = {}) {
+    const layer = buscarLayerPartido(nombre);
+    if (!layer) return false;
+
+    const bounds = layer.getBounds();
+
+    // Si el panel de detalles esta abierto, dejar margen para que no tape el partido
+    const panel = document.getElementById("detailsPanel");
+    const anchoPanel = panel.classList.contains("open") ? panel.offsetWidth : 0;
+
+    map.flyToBounds(bounds, {
+        maxZoom: opts.maxZoom || 11.5,
+        paddingTopLeft: [70, 70],
+        paddingBottomRight: [anchoPanel + 70, 70],
+        duration: opts.duration || 1.5,
+        easeLinearity: 0.22
+    });
+
+    // El resaltado arranca cuando termina el vuelo
+    map.once('moveend', () => destacarPartido(layer));
+    // Respaldo por si el vuelo se interrumpe
+    setTimeout(() => { if (partidoDestacado !== layer) destacarPartido(layer); }, ((opts.duration || 1.5) * 1000) + 200);
+    return true;
+}
+
+function destacarPartido(layer) {
+    limpiarDestaque();
+    if (!layer) return;
+    partidoDestacado = layer;
+    layer.bringToFront();
+
+    const el = layer.getElement ? layer.getElement() : layer._path;
+    if (el) el.classList.add('partido-destacado');
+
+    if (timerDestaque) clearTimeout(timerDestaque);
+    timerDestaque = setTimeout(limpiarDestaque, 6000);
+}
+
+function limpiarDestaque() {
+    if (timerDestaque) { clearTimeout(timerDestaque); timerDestaque = null; }
+    if (!partidoDestacado) return;
+    const el = partidoDestacado.getElement ? partidoDestacado.getElement() : partidoDestacado._path;
+    if (el) el.classList.remove('partido-destacado');
+    partidoDestacado = null;
+}
+
+function centrarEnPartido(nombre) {
+    volarAPartido(nombre);
+}
+
+// ============================================================
+// SUGERENCIAS DE BUSQUEDA
+// ============================================================
+
+let sugerenciaActiva = -1;
+
+function renderSugerencias(texto) {
+    const cont = document.getElementById('searchResults');
+    const q = normalizar(texto);
+    sugerenciaActiva = -1;
+
+    if (!q || q.length < 2) {
+        cont.style.display = 'none';
+        cont.innerHTML = '';
+        return;
+    }
+
+    const matches = nombresPartidos
+        .filter(n => normalizar(n).includes(q))
+        .sort((a, b) => {
+            const ia = normalizar(a).indexOf(q);
+            const ib = normalizar(b).indexOf(q);
+            if (ia !== ib) return ia - ib;
+            return a.length - b.length;
+        })
+        .slice(0, 8);
+
+    if (!matches.length) {
+        cont.innerHTML = '<div class="search-empty">Ningún municipio con ese nombre</div>';
+        cont.style.display = 'block';
+        return;
+    }
+
+    cont.innerHTML = '';
+    matches.forEach((nombre, idx) => {
+        const insc = state.inscripciones.filter(i => normalizar(i.partido) === normalizar(nombre));
+        const item = document.createElement('button');
+        item.className = 'search-item';
+        item.dataset.idx = idx;
+        item.dataset.nombre = nombre;
+
+        const puntos = insc.slice(0, 4).map(i => {
+            const c = state.clientes.find(x => x.id === i.clienteId);
+            return `<span class="search-dot ${i.estado}" style="background:${c ? c.color : '#94a3b8'}"></span>`;
+        }).join('');
+
+        item.innerHTML = `
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
+            </svg>
+            <span class="search-nombre">${escapeHtml(nombre)}</span>
+            <span class="search-dots">${puntos}</span>
+            <span class="search-count">${insc.length || ''}</span>
+        `;
+        item.addEventListener('click', () => irAPartido(nombre));
+        cont.appendChild(item);
+    });
+    cont.style.display = 'block';
+}
+
+function irAPartido(nombre) {
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('searchInput').value = nombre;
+    document.getElementById('btnClearSearch').style.display = '';
+    state.filtros.busqueda = '';
+    refrescarPartidos();
+    abrirPanelPartido(nombre);
+    volarAPartido(nombre);
+}
+
+function limpiarBusqueda() {
+    const input = document.getElementById('searchInput');
+    input.value = '';
+    state.filtros.busqueda = '';
+    document.getElementById('searchResults').style.display = 'none';
+    document.getElementById('btnClearSearch').style.display = 'none';
+    limpiarDestaque();
+    refrescarPartidos();
+    input.focus();
+}
+
+function moverSugerencia(delta) {
+    const items = Array.from(document.querySelectorAll('.search-item'));
+    if (!items.length) return;
+    sugerenciaActiva = (sugerenciaActiva + delta + items.length) % items.length;
+    items.forEach((it, i) => it.classList.toggle('activo', i === sugerenciaActiva));
+    items[sugerenciaActiva].scrollIntoView({ block: 'nearest' });
 }
 
 // ============================================================
@@ -909,9 +1064,41 @@ function populateClientSelect() {
 // ============================================================
 
 function bindUI() {
-    document.getElementById('searchInput').addEventListener('input', (e) => {
-        state.filtros.busqueda = e.target.value;
+    const inputBusqueda = document.getElementById('searchInput');
+
+    inputBusqueda.addEventListener('input', (e) => {
+        const txt = e.target.value;
+        state.filtros.busqueda = txt;
+        document.getElementById('btnClearSearch').style.display = txt ? '' : 'none';
+        renderSugerencias(txt);
         refrescarPartidos();
+    });
+
+    inputBusqueda.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowDown') { e.preventDefault(); moverSugerencia(1); }
+        else if (e.key === 'ArrowUp') { e.preventDefault(); moverSugerencia(-1); }
+        else if (e.key === 'Enter') {
+            e.preventDefault();
+            const items = document.querySelectorAll('.search-item');
+            if (!items.length) return;
+            const elegido = items[sugerenciaActiva >= 0 ? sugerenciaActiva : 0];
+            irAPartido(elegido.dataset.nombre);
+        } else if (e.key === 'Escape') {
+            document.getElementById('searchResults').style.display = 'none';
+        }
+    });
+
+    inputBusqueda.addEventListener('focus', () => {
+        if (inputBusqueda.value) renderSugerencias(inputBusqueda.value);
+    });
+
+    document.getElementById('btnClearSearch').addEventListener('click', limpiarBusqueda);
+
+    // Cerrar sugerencias al clickear afuera
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.search-wrap')) {
+            document.getElementById('searchResults').style.display = 'none';
+        }
     });
 
     document.querySelectorAll('[data-status]').forEach(cb => {
