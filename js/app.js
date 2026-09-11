@@ -10,7 +10,8 @@ let state = {
     filtros: {
         busqueda: '',
         estados: ['inscripto', 'por-iniciar'],
-        clientes: []
+        clientes: [],
+        vto: null
     },
     selectedPartido: null,
     editingInscripcionId: null,
@@ -32,7 +33,20 @@ window.addEventListener('DOMContentLoaded', () => {
     actualizarContadores();
     bindUI();
     populateClientSelect();
+    avisarVencimientos();
 });
+
+function avisarVencimientos() {
+    const vencidos = state.inscripciones.filter(i => nivelVto(i) === 'vencido').length;
+    const criticos = state.inscripciones.filter(i => nivelVto(i) === 'critico').length;
+    if (!vencidos && !criticos) return;
+    setTimeout(() => {
+        const partes = [];
+        if (vencidos) partes.push(`${vencidos} alta${vencidos > 1 ? 's' : ''} vencida${vencidos > 1 ? 's' : ''}`);
+        if (criticos) partes.push(`${criticos} vence${criticos > 1 ? 'n' : ''} en menos de 30 días`);
+        toast(partes.join(' · '), vencidos ? 'error' : 'warning');
+    }, 700);
+}
 
 // Patches que se aplican una vez por usuario (para sumar inscripciones nuevas sin tocar las existentes)
 const PATCHES = [
@@ -100,6 +114,7 @@ function cargarDatos() {
                     estado: i.estado === 'concursando' ? 'por-iniciar' : i.estado
                 }));
             }
+            state.inscripciones = state.inscripciones.map(normalizarInscripcion);
             guardarDatos();
         } catch (e) {
             console.error('Error cargando datos:', e);
@@ -140,6 +155,107 @@ function guardarDatos() {
 function esPartidoExcluido(nombre) {
     const n = normalizar(nombre);
     return PARTIDOS_EXCLUIDOS.some(p => n.includes(normalizar(p)));
+}
+
+// ============================================================
+// VENCIMIENTOS Y MONTOS
+// ============================================================
+
+const DIAS_CRITICO = 30;
+const DIAS_PROXIMO = 90;
+
+function normalizarInscripcion(i) {
+    return {
+        fechaAlta: '',
+        fechaVto: '',
+        sinVto: false,
+        monto: null,
+        ...i,
+        archivos: i.archivos || []
+    };
+}
+
+// Devuelve dias restantes hasta el vencimiento (negativo = vencido), o null si no aplica
+function diasHastaVto(i) {
+    if (!i.fechaVto || i.sinVto) return null;
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    const [a, m, d] = i.fechaVto.split('-').map(Number);
+    if (!a || !m || !d) return null;
+    const vto = new Date(a, m - 1, d);
+    vto.setHours(0, 0, 0, 0);
+    return Math.round((vto - hoy) / 86400000);
+}
+
+// 'vencido' | 'critico' | 'proximo' | 'vigente' | null
+function nivelVto(i) {
+    const dias = diasHastaVto(i);
+    if (dias === null) return null;
+    if (dias < 0) return 'vencido';
+    if (dias <= DIAS_CRITICO) return 'critico';
+    if (dias <= DIAS_PROXIMO) return 'proximo';
+    return 'vigente';
+}
+
+function textoVto(i) {
+    const dias = diasHastaVto(i);
+    if (dias === null) return i.sinVto ? 'Sin vencimiento' : 'Sin fecha';
+    if (dias < 0) return `Vencido hace ${Math.abs(dias)} día${Math.abs(dias) === 1 ? '' : 's'}`;
+    if (dias === 0) return 'Vence hoy';
+    if (dias === 1) return 'Vence mañana';
+    return `Vence en ${dias} días`;
+}
+
+function fechaLegible(iso) {
+    if (!iso) return '';
+    const [a, m, d] = iso.split('-');
+    return `${d}/${m}/${a}`;
+}
+
+function sumarUnAnio(iso) {
+    if (!iso) return '';
+    const [a, m, d] = iso.split('-').map(Number);
+    const f = new Date(a + 1, m - 1, d);
+    return f.toISOString().split('T')[0];
+}
+
+function parseMonto(txt) {
+    if (txt === null || txt === undefined) return null;
+    const limpio = String(txt).replace(/[^0-9,.-]/g, '').replace(/\./g, '').replace(',', '.');
+    if (limpio === '') return null;
+    const n = parseFloat(limpio);
+    return isNaN(n) ? null : n;
+}
+
+function formatMonto(n) {
+    if (n === null || n === undefined || isNaN(n)) return '';
+    return '$ ' + n.toLocaleString('es-AR', { maximumFractionDigits: 0 });
+}
+
+// Inscripciones con vencimiento que pasan los filtros de estado/sociedad/busqueda
+function inscripcionesConAlerta(nivel) {
+    return state.inscripciones.filter(i => {
+        if (!state.filtros.clientes.includes(i.clienteId)) return false;
+        const n = nivelVto(i);
+        if (!n || n === 'vigente') return false;
+        if (nivel && nivel !== 'todos' && n !== nivel) return false;
+        return true;
+    }).sort((a, b) => (diasHastaVto(a) - diasHastaVto(b)));
+}
+
+function partidoTieneAlerta(nombrePartido) {
+    const n = normalizar(nombrePartido);
+    let peor = null;
+    state.inscripciones.forEach(i => {
+        if (!inscripcionPasaFiltros(i)) return;
+        const m = normalizar(i.partido);
+        if (!(m === n || m.includes(n) || n.includes(m))) return;
+        const nv = nivelVto(i);
+        if (nv === 'vencido') peor = 'vencido';
+        else if (nv === 'critico' && peor !== 'vencido') peor = 'critico';
+        else if (nv === 'proximo' && !peor) peor = 'proximo';
+    });
+    return peor;
 }
 
 // ============================================================
@@ -216,6 +332,12 @@ function inscripcionesDelPartido(nombrePartido) {
 function inscripcionPasaFiltros(i) {
     if (!state.filtros.estados.includes(i.estado)) return false;
     if (!state.filtros.clientes.includes(i.clienteId)) return false;
+    if (state.filtros.vto) {
+        const n = nivelVto(i);
+        if (state.filtros.vto === 'vencido' && n !== 'vencido') return false;
+        if (state.filtros.vto === 'critico' && !(n === 'vencido' || n === 'critico')) return false;
+        if (state.filtros.vto === 'proximo' && !(n === 'vencido' || n === 'critico' || n === 'proximo')) return false;
+    }
     if (state.filtros.busqueda) {
         const q = state.filtros.busqueda.toLowerCase();
         const cliente = state.clientes.find(c => c.id === i.clienteId);
@@ -259,10 +381,24 @@ function estiloPartido(feature, hover) {
         fillOpacity = hover ? 0.55 : 0.35;
     }
 
+    const alerta = partidoTieneAlerta(nombre);
+    if (alerta) {
+        const colorAlerta = alerta === 'vencido' ? '#dc2626' : (alerta === 'critico' ? '#ea580c' : '#ca8a04');
+        return {
+            color: colorAlerta,
+            weight: hover ? 4 : 3,
+            opacity: 1,
+            dashArray: alerta === 'proximo' ? '5,4' : null,
+            fillColor: fillColor,
+            fillOpacity: fillOpacity
+        };
+    }
+
     return {
         color: hover ? '#1e293b' : '#64748b',
         weight: hover ? 2 : 1,
         opacity: hover ? 1 : 0.55,
+        dashArray: null,
         fillColor: fillColor,
         fillOpacity: fillOpacity
     };
@@ -326,11 +462,18 @@ function mostrarLeyendaPartido(nombre, layer) {
             const nombreCli = cliente ? cliente.nombre : 'Sin sociedad';
             const colorCli = cliente ? cliente.color : '#94a3b8';
             const razon = i.descripcion ? ` · ${escapeHtml(i.descripcion)}` : '';
+            const nv = nivelVto(i);
+            const chipVto = (nv && nv !== 'vigente')
+                ? `<span class="vto-badge ${nv}">${textoVto(i)}</span>`
+                : (i.fechaVto && !i.sinVto ? `<span class="vto-badge vigente">Vence ${fechaLegible(i.fechaVto)}</span>` : '');
+            const chipMonto = (i.monto !== null && i.monto !== undefined && i.monto !== '')
+                ? `<span class="monto-badge">${formatMonto(i.monto)}</span>` : '';
             html += `
                 <div class="leyenda-item">
                     <span class="leyenda-color" style="background:${colorCli}"></span>
                     <span class="leyenda-cliente">${escapeHtml(nombreCli)}</span>
                     <span class="status-badge ${i.estado}">${textoEstado(i.estado)}</span>
+                    ${chipVto}${chipMonto}
                     ${razon ? `<span class="leyenda-razon">${razon}</span>` : ''}
                 </div>
             `;
@@ -398,6 +541,23 @@ function cerrarPanel() {
     state.selectedPartido = null;
 }
 
+function renderMetaInscripcion(i) {
+    const partes = [];
+    const nv = nivelVto(i);
+    if (i.sinVto) {
+        partes.push('<span class="vto-badge sin">Sin vencimiento</span>');
+    } else if (i.fechaVto) {
+        const clase = (nv && nv !== 'vigente') ? nv : 'vigente';
+        partes.push(`<span class="vto-badge ${clase}">${fechaLegible(i.fechaVto)} · ${textoVto(i)}</span>`);
+    }
+    if (i.fechaAlta) partes.push(`<span class="meta-chip">Alta ${fechaLegible(i.fechaAlta)}</span>`);
+    if (i.monto !== null && i.monto !== undefined && i.monto !== '') {
+        partes.push(`<span class="monto-badge">${formatMonto(i.monto)}</span>`);
+    }
+    if (!partes.length) return '';
+    return `<div class="inscripcion-meta">${partes.join('')}</div>`;
+}
+
 function renderInscripcionesList() {
     const container = document.getElementById('inscripcionesList');
     container.innerHTML = '';
@@ -423,6 +583,7 @@ function renderInscripcionesList() {
                     <span class="status-dot"></span>${textoEstado(i.estado)}
                 </span>
             </div>
+            ${renderMetaInscripcion(i)}
             ${i.descripcion ? `<div class="inscripcion-desc"><strong>Razón:</strong> ${escapeHtml(i.descripcion)}</div>` : ''}
             ${i.notas ? `<div class="inscripcion-notas">${escapeHtml(i.notas)}</div>` : ''}
             ${i.archivos && i.archivos.length ? `<div class="inscripcion-archivos">📎 ${i.archivos.length} archivo${i.archivos.length>1?'s':''}</div>` : ''}
@@ -452,6 +613,10 @@ function abrirModalInscripcion(inscripcionId = null) {
         document.querySelectorAll('input[name="estado"]').forEach(r => r.checked = r.value === i.estado);
         document.getElementById('fieldDescripcion').value = i.descripcion || '';
         document.getElementById('fieldNotas').value = i.notas || '';
+        document.getElementById('fieldFechaAlta').value = i.fechaAlta || '';
+        document.getElementById('fieldFechaVto').value = i.fechaVto || '';
+        document.getElementById('fieldSinVto').checked = !!i.sinVto;
+        document.getElementById('fieldMonto').value = (i.monto !== null && i.monto !== undefined && i.monto !== '') ? Number(i.monto).toLocaleString('es-AR', { maximumFractionDigits: 0 }) : '';
         state.archivosTemp = [...(i.archivos || [])];
         document.getElementById('btnDeleteInscripcion').style.display = '';
     } else {
@@ -460,8 +625,14 @@ function abrirModalInscripcion(inscripcionId = null) {
         document.querySelectorAll('input[name="estado"]').forEach(r => r.checked = r.value === 'no-inscripto');
         document.getElementById('fieldDescripcion').value = '';
         document.getElementById('fieldNotas').value = '';
+        document.getElementById('fieldFechaAlta').value = '';
+        document.getElementById('fieldFechaVto').value = '';
+        document.getElementById('fieldSinVto').checked = false;
+        document.getElementById('fieldMonto').value = '';
         document.getElementById('btnDeleteInscripcion').style.display = 'none';
     }
+    actualizarEstadoVtoUI();
+    actualizarHintMonto();
     renderArchivos();
     document.getElementById('modalInscripcion').style.display = 'flex';
 }
@@ -480,6 +651,10 @@ function guardarInscripcion(e) {
     if (!estadoEl) { toast('Seleccioná un estado', 'error'); return; }
     const descripcion = document.getElementById('fieldDescripcion').value.trim();
     const notas = document.getElementById('fieldNotas').value.trim();
+    const sinVto = document.getElementById('fieldSinVto').checked;
+    const fechaAlta = document.getElementById('fieldFechaAlta').value;
+    const fechaVto = sinVto ? '' : document.getElementById('fieldFechaVto').value;
+    const monto = parseMonto(document.getElementById('fieldMonto').value);
 
     if (state.editingInscripcionId) {
         const i = state.inscripciones.find(x => x.id === state.editingInscripcionId);
@@ -488,6 +663,10 @@ function guardarInscripcion(e) {
             i.estado = estadoEl.value;
             i.descripcion = descripcion;
             i.notas = notas;
+            i.fechaAlta = fechaAlta;
+            i.fechaVto = fechaVto;
+            i.sinVto = sinVto;
+            i.monto = monto;
             i.archivos = [...state.archivosTemp];
             i.actualizado = new Date().toISOString();
         }
@@ -499,6 +678,10 @@ function guardarInscripcion(e) {
             estado: estadoEl.value,
             descripcion: descripcion,
             notas: notas,
+            fechaAlta: fechaAlta,
+            fechaVto: fechaVto,
+            sinVto: sinVto,
+            monto: monto,
             archivos: [...state.archivosTemp],
             creado: new Date().toISOString()
         });
@@ -562,6 +745,149 @@ function actualizarContadores() {
     document.getElementById('count-inscripto').textContent = counts.inscripto;
     document.getElementById('count-por-iniciar').textContent = counts['por-iniciar'];
     document.getElementById('count-no-inscripto').textContent = counts['no-inscripto'];
+    actualizarContadoresVto();
+    actualizarMontos();
+}
+
+function actualizarContadoresVto() {
+    const vto = { vencido: 0, critico: 0, proximo: 0 };
+    state.inscripciones.forEach(i => {
+        const n = nivelVto(i);
+        if (n && vto[n] !== undefined) vto[n]++;
+    });
+    document.getElementById('count-vto-vencido').textContent = vto.vencido;
+    document.getElementById('count-vto-critico').textContent = vto.critico;
+    document.getElementById('count-vto-proximo').textContent = vto.proximo;
+
+    document.querySelectorAll('.vto-chip').forEach(chip => {
+        const nivel = chip.dataset.vto;
+        chip.classList.toggle('active', state.filtros.vto === nivel);
+        chip.classList.toggle('vacio', vto[nivel] === 0);
+    });
+}
+
+function actualizarMontos() {
+    let total = 0;
+    const porCliente = {};
+    state.inscripciones.forEach(i => {
+        const m = Number(i.monto);
+        if (!i.monto || isNaN(m)) return;
+        total += m;
+        porCliente[i.clienteId] = (porCliente[i.clienteId] || 0) + m;
+    });
+    document.getElementById('montoTotal').textContent = formatMonto(total) || '$ 0';
+
+    const detalle = document.getElementById('montoDetalle');
+    detalle.innerHTML = '';
+    const ids = Object.keys(porCliente).sort((a, b) => porCliente[b] - porCliente[a]);
+    if (!ids.length) {
+        detalle.innerHTML = '<div class="monto-empty">Sin montos cargados todavía</div>';
+        return;
+    }
+    ids.forEach(id => {
+        const c = state.clientes.find(x => x.id === id);
+        const row = document.createElement('div');
+        row.className = 'monto-row';
+        row.innerHTML = `
+            <span class="client-color" style="background:${c ? c.color : '#94a3b8'}"></span>
+            <span class="monto-cli">${escapeHtml(c ? c.nombre : 'Sin sociedad')}</span>
+            <span class="monto-num">${formatMonto(porCliente[id])}</span>
+        `;
+        detalle.appendChild(row);
+    });
+}
+
+// ============================================================
+// MODAL VENCIMIENTOS
+// ============================================================
+
+let vtoTabActiva = 'todos';
+
+function abrirModalVencimientos(tab = 'todos') {
+    vtoTabActiva = tab;
+    document.querySelectorAll('.vto-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+    renderListaVencimientos();
+    document.getElementById('modalVencimientos').style.display = 'flex';
+}
+
+function cerrarModalVencimientos() {
+    document.getElementById('modalVencimientos').style.display = 'none';
+}
+
+function renderListaVencimientos() {
+    const cont = document.getElementById('vtoList');
+    cont.innerHTML = '';
+    const items = inscripcionesConAlerta(vtoTabActiva);
+
+    if (!items.length) {
+        cont.innerHTML = '<div class="empty-state">Sin vencimientos en esta categoría.</div>';
+        return;
+    }
+
+    items.forEach(i => {
+        const c = state.clientes.find(x => x.id === i.clienteId);
+        const nv = nivelVto(i);
+        const row = document.createElement('div');
+        row.className = `vto-row ${nv}`;
+        row.innerHTML = `
+            <span class="vto-row-color" style="background:${c ? c.color : '#94a3b8'}"></span>
+            <div class="vto-row-main">
+                <div class="vto-row-top">
+                    <strong>${escapeHtml(i.partido)}</strong>
+                    <span class="vto-row-cli">${escapeHtml(c ? c.nombre : 'Sin sociedad')}</span>
+                </div>
+                <div class="vto-row-sub">
+                    <span class="vto-badge ${nv}">${textoVto(i)}</span>
+                    <span class="meta-chip">Vence ${fechaLegible(i.fechaVto)}</span>
+                    ${i.monto ? `<span class="monto-badge">${formatMonto(i.monto)}</span>` : ''}
+                    <span class="status-badge ${i.estado}">${textoEstado(i.estado)}</span>
+                </div>
+            </div>
+            <button class="btn-secondary vto-row-btn">Abrir</button>
+        `;
+        row.querySelector('.vto-row-btn').addEventListener('click', () => {
+            cerrarModalVencimientos();
+            abrirPanelPartido(i.partido);
+            centrarEnPartido(i.partido);
+        });
+        cont.appendChild(row);
+    });
+}
+
+function centrarEnPartido(nombre) {
+    if (!partidosLayer) return;
+    const n = normalizar(nombre);
+    partidosLayer.eachLayer(layer => {
+        const nom = normalizar(layer.feature.properties.nombre || '');
+        if (nom === n || nom.includes(n) || n.includes(nom)) {
+            map.fitBounds(layer.getBounds(), { maxZoom: 11, padding: [40, 40] });
+        }
+    });
+}
+
+// ============================================================
+// UI DE FECHAS EN EL MODAL DE INSCRIPCION
+// ============================================================
+
+function actualizarEstadoVtoUI() {
+    const sinVto = document.getElementById('fieldSinVto').checked;
+    const campoVto = document.getElementById('fieldFechaVto');
+    campoVto.disabled = sinVto;
+    if (sinVto) campoVto.value = '';
+
+    const hint = document.getElementById('hintVto');
+    if (sinVto) { hint.textContent = ''; hint.className = 'hint'; return; }
+    const v = campoVto.value;
+    if (!v) { hint.textContent = ''; hint.className = 'hint'; return; }
+    const fake = { fechaVto: v, sinVto: false };
+    const nv = nivelVto(fake);
+    hint.textContent = textoVto(fake);
+    hint.className = 'hint ' + (nv === 'vencido' ? 'danger' : (nv === 'critico' ? 'warn' : 'ok'));
+}
+
+function actualizarHintMonto() {
+    const n = parseMonto(document.getElementById('fieldMonto').value);
+    document.getElementById('hintMonto').textContent = n === null ? '' : formatMonto(n);
 }
 
 function populateClientSelect() {
@@ -621,6 +947,36 @@ function bindUI() {
         document.querySelector('.app').classList.remove('sidebar-collapsed');
         setTimeout(() => map.invalidateSize(), 260);
     });
+
+    // Vencimientos
+    document.getElementById('btnVerVencimientos').addEventListener('click', () => abrirModalVencimientos('todos'));
+    document.getElementById('btnCloseVtoModal').addEventListener('click', cerrarModalVencimientos);
+    document.getElementById('modalVencimientos').addEventListener('click', (e) => {
+        if (e.target.id === 'modalVencimientos') cerrarModalVencimientos();
+    });
+    document.querySelectorAll('.vto-tab').forEach(t => {
+        t.addEventListener('click', () => abrirModalVencimientos(t.dataset.tab));
+    });
+    document.querySelectorAll('.vto-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+            const nivel = chip.dataset.vto;
+            state.filtros.vto = (state.filtros.vto === nivel) ? null : nivel;
+            actualizarContadoresVto();
+            refrescarPartidos();
+        });
+    });
+
+    // Fechas y montos en el modal de inscripcion
+    document.getElementById('fieldFechaAlta').addEventListener('change', (e) => {
+        const vtoEl = document.getElementById('fieldFechaVto');
+        if (e.target.value && !vtoEl.value && !document.getElementById('fieldSinVto').checked) {
+            vtoEl.value = sumarUnAnio(e.target.value);
+        }
+        actualizarEstadoVtoUI();
+    });
+    document.getElementById('fieldFechaVto').addEventListener('change', actualizarEstadoVtoUI);
+    document.getElementById('fieldSinVto').addEventListener('change', actualizarEstadoVtoUI);
+    document.getElementById('fieldMonto').addEventListener('input', actualizarHintMonto);
 
     document.getElementById('btnExport').addEventListener('click', exportarDatos);
     document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
@@ -768,7 +1124,7 @@ function importarDatos(e) {
             if (!data.clientes || !inscripciones) throw new Error('Formato inválido');
             if (!confirm(`Importar ${inscripciones.length} inscripciones y ${data.clientes.length} sociedades? Reemplaza los datos actuales.`)) return;
             state.clientes = data.clientes;
-            state.inscripciones = inscripciones.filter(i => !esPartidoExcluido(i.partido));
+            state.inscripciones = inscripciones.filter(i => !esPartidoExcluido(i.partido)).map(normalizarInscripcion);
             state.filtros.clientes = state.clientes.map(c => c.id);
             guardarDatos();
             renderClientFilters();
