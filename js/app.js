@@ -270,11 +270,12 @@ function inicializarMapa() {
         attributionControl: true
     });
 
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_nolabels/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; OpenStreetMap &copy; CARTO &copy; mgaitan/departamentos_argentina',
-        subdomains: 'abcd',
+    // OpenStreetMap directo: sin API key. Se aclara con filtro CSS (.base-tiles) para
+    // que no compita con los colores de los partidos.
+    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap &copy; mgaitan/departamentos_argentina',
         maxZoom: 19,
-        opacity: 0.55
+        className: 'base-tiles'
     }).addTo(map);
 
     cargarPartidos();

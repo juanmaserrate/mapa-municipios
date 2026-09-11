@@ -1454,3 +1454,11 @@ input, textarea, select { font-family: inherit; }
     .vto-row { flex-wrap: wrap; }
     .vto-row-btn { width: 100%; }
 }
+
+/* ============================================================
+   MAPA BASE (OpenStreetMap sin API key)
+   Se desatura y aclara para que los partidos resalten encima
+   ============================================================ */
+.base-tiles {
+    filter: grayscale(1) brightness(1.12) contrast(0.82) opacity(0.45);
+}
