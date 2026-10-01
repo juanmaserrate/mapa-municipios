@@ -37,7 +37,19 @@ window.addEventListener('DOMContentLoaded', () => {
     bindUI();
     populateClientSelect();
     avisarVencimientos();
+
+    // En celular el panel arranca cerrado para que se vea el mapa entero
+    if (esCelular()) document.querySelector('.app').classList.add('sidebar-collapsed');
 });
+
+function esCelular() {
+    return window.innerWidth <= 768;
+}
+
+function cerrarSidebar() {
+    document.querySelector('.app').classList.add('sidebar-collapsed');
+    setTimeout(() => map.invalidateSize(), 260);
+}
 
 function avisarVencimientos() {
     const vencidos = state.inscripciones.filter(i => nivelVto(i) === 'vencido').length;
@@ -268,7 +280,8 @@ function partidoTieneAlerta(nombrePartido) {
 function inicializarMapa() {
     map = L.map('map', {
         center: [-34.65, -58.55],
-        zoom: 10,
+        // En celular se arranca un paso mas lejos para ver mas territorio
+        zoom: window.innerWidth <= 768 ? 9 : 10,
         zoomControl: true,
         attributionControl: true
     });
@@ -858,6 +871,7 @@ function renderListaVencimientos() {
         `;
         row.querySelector('.vto-row-btn').addEventListener('click', () => {
             cerrarModalVencimientos();
+            if (esCelular()) cerrarSidebar();
             abrirPanelPartido(i.partido);
             centrarEnPartido(i.partido);
         });
@@ -889,14 +903,19 @@ function volarAPartido(nombre, opts = {}) {
 
     const bounds = layer.getBounds();
 
-    // Si el panel de detalles esta abierto, dejar margen para que no tape el partido
-    const panel = document.getElementById("detailsPanel");
-    const anchoPanel = panel.classList.contains("open") ? panel.offsetWidth : 0;
+    // Dejar lugar para el panel: a la derecha en pantalla grande,
+    // abajo cuando se abre como hoja en celular
+    const panel = document.getElementById('detailsPanel');
+    const abierto = panel.classList.contains('open');
+    let padBR = [70, 70];
+    if (abierto) {
+        padBR = esCelular() ? [70, panel.offsetHeight + 40] : [panel.offsetWidth + 70, 70];
+    }
 
     map.flyToBounds(bounds, {
         maxZoom: opts.maxZoom || 11.5,
         paddingTopLeft: [70, 70],
-        paddingBottomRight: [anchoPanel + 70, 70],
+        paddingBottomRight: padBR,
         duration: opts.duration || 1.5,
         easeLinearity: 0.22
     });
@@ -999,6 +1018,7 @@ function irAPartido(nombre) {
     document.getElementById('btnClearSearch').style.display = '';
     state.filtros.busqueda = '';
     refrescarPartidos();
+    if (esCelular()) cerrarSidebar();
     abrirPanelPartido(nombre);
     volarAPartido(nombre);
 }
@@ -1136,6 +1156,7 @@ function bindUI() {
         document.querySelector('.app').classList.remove('sidebar-collapsed');
         setTimeout(() => map.invalidateSize(), 260);
     });
+    document.getElementById('sidebarOverlay').addEventListener('click', cerrarSidebar);
 
     // Vencimientos
     document.getElementById('btnVerVencimientos').addEventListener('click', () => abrirModalVencimientos('todos'));
