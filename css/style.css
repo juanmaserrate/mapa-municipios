@@ -778,7 +778,10 @@ input, textarea, select { font-family: inherit; }
     border-radius: 14px;
     width: 100%;
     max-width: 420px;
-    padding: 24px;
+    max-height: calc(100vh - 40px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
     box-shadow: var(--shadow-lg);
     animation: modalIn 0.2s ease;
 }
@@ -792,7 +795,9 @@ input, textarea, select { font-family: inherit; }
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 20px;
+    padding: 22px 24px 14px;
+    flex-shrink: 0;
+    border-bottom: 1px solid var(--border);
 }
 
 .modal-header h2 {
@@ -804,6 +809,21 @@ input, textarea, select { font-family: inherit; }
     display: flex;
     flex-direction: column;
     gap: 16px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 18px 24px 0;
+}
+
+/* Los botones quedan siempre a la vista, pegados abajo */
+.modal form .form-actions {
+    position: sticky;
+    bottom: 0;
+    background: var(--bg-darker);
+    margin-top: auto;
+    padding-bottom: 18px;
+    z-index: 2;
 }
 
 /* Color picker */
@@ -1302,7 +1322,12 @@ input, textarea, select { font-family: inherit; }
 }
 
 .vto-modal-body {
-    padding: 0 20px 20px;
+    padding: 16px 20px 20px;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .vto-tabs {
@@ -1336,8 +1361,10 @@ input, textarea, select { font-family: inherit; }
     display: flex;
     flex-direction: column;
     gap: 8px;
-    max-height: 55vh;
+    flex: 1;
+    min-height: 0;
     overflow-y: auto;
+    overscroll-behavior: contain;
 }
 
 .vto-row {
@@ -1593,4 +1620,13 @@ input, textarea, select { font-family: inherit; }
 .partido-label.destacado {
     font-weight: 700 !important;
     color: #3730a3 !important;
+}
+
+/* En pantallas chicas el modal usa casi todo el alto disponible */
+@media (max-width: 768px) {
+    .modal { padding: 10px; }
+    .modal-content { max-height: calc(100vh - 20px); }
+    .modal-header { padding: 18px 18px 12px; }
+    .modal form { padding: 14px 18px 0; }
+    .modal form .form-actions { padding-bottom: 14px; }
 }

@@ -645,6 +645,7 @@ function abrirModalInscripcion(inscripcionId = null) {
     actualizarHintMonto();
     renderArchivos();
     document.getElementById('modalInscripcion').style.display = 'flex';
+    document.getElementById('inscripcionForm').scrollTop = 0;
 }
 
 function cerrarModalInscripcion() {
@@ -1165,6 +1166,20 @@ function bindUI() {
     document.getElementById('fieldFechaVto').addEventListener('change', actualizarEstadoVtoUI);
     document.getElementById('fieldSinVto').addEventListener('change', actualizarEstadoVtoUI);
     document.getElementById('fieldMonto').addEventListener('input', actualizarHintMonto);
+
+    // Destrabar modales: Escape y click sobre el fondo oscuro
+    document.getElementById('modalInscripcion').addEventListener('click', (e) => {
+        if (e.target.id === 'modalInscripcion') cerrarModalInscripcion();
+    });
+    document.getElementById('modalClient').addEventListener('click', (e) => {
+        if (e.target.id === 'modalClient') cerrarModalCliente();
+    });
+    document.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (document.getElementById('modalInscripcion').style.display === 'flex') cerrarModalInscripcion();
+        else if (document.getElementById('modalClient').style.display === 'flex') cerrarModalCliente();
+        else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
+    });
 
     document.getElementById('btnExport').addEventListener('click', exportarDatos);
     document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
