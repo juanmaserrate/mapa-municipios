@@ -214,6 +214,9 @@ const tabla = {
 // ---------- Cambio de vista ----------
 
 function mostrarVista(cual) {
+    // El panel del municipio es del mapa: fuera del mapa estorba
+    if (cual !== 'mapa') cerrarPanel();
+
     document.querySelector('.map-container').style.display = cual === 'mapa' ? '' : 'none';
     document.getElementById('vistaTabla').style.display = cual === 'tabla' ? '' : 'none';
     document.getElementById('vistaHistorial').style.display = cual === 'historial' ? '' : 'none';
