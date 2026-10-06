@@ -91,6 +91,74 @@ const PATCHES = [
                 actualizar: true
             }
         ]
+    },
+    {
+        // Carga del area comercial del 06/10/2026: vencimientos y seguimiento
+        id: 'carga-comercial-2026-10-06',
+        items: [
+            {
+                partido: 'San Isidro',
+                clienteId: 'r14',
+                estado: 'inscripto',
+                fechaVto: '2026-10-20',
+                sinVto: false,
+                notas: 'Sin vencimiento, sólo se consulta si hay algo que mandar',
+                actualizar: true
+            },
+            {
+                partido: 'CABA',
+                clienteId: 'r14',
+                estado: 'inscripto',
+                fechaVto: '2026-07-31',
+                sinVto: false,
+                notas: '21.09.26 iniciada la actualización',
+                actualizar: true
+            },
+            {
+                partido: 'Lanus',
+                clienteId: 'r14',
+                estado: 'inscripto',
+                fechaVto: '2026-10-15',
+                sinVto: false,
+                actualizar: true
+            },
+            {
+                partido: 'Esteban Echeverria',
+                clienteId: 'r14',
+                estado: 'inscripto',
+                fechaVto: '2026-10-30',
+                sinVto: false,
+                notas: '18.09.26 mandé mail a compras para que nos inviten a cotizar. Sino, ir personalmente (Cristina)',
+                actualizar: true
+            },
+            {
+                partido: 'Florencio Varela',
+                clienteId: 'r14',
+                estado: 'inscripto',
+                fechaVto: '2026-10-20',
+                sinVto: false,
+                actualizar: true
+            },
+            // Altas nuevas en tramite (no existian en el sistema)
+            {
+                partido: 'San Fernando',
+                clienteId: 'r14',
+                estado: 'por-iniciar',
+                notas: 'Envié por mail para que nos indiquen procedimiento'
+            },
+            {
+                partido: 'Mercedes',
+                clienteId: 'r14',
+                estado: 'por-iniciar',
+                notas: 'Inicio alta por portal el 25/9/26'
+            },
+            {
+                partido: 'General Rodriguez',
+                clienteId: 'r14',
+                estado: 'por-iniciar',
+                notas: '22.09.26 hablé x tel, mandé mail y a esperar qie nos manden instructivo'
+            }
+        ]
     }
 ];
 
