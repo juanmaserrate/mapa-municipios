@@ -10,6 +10,7 @@ const apiDatos = require('./api/datos');
 const apiLicitaciones = require('./api/licitaciones');
 const apiAlertas = require('./api/alertas');
 const apiResumen = require('./api/resumen');
+const { indexVersionado } = require('./lib/versionado');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -33,12 +34,19 @@ app.use('/api', apiLicitaciones);
 app.use('/api', apiAlertas);
 app.use('/api', apiResumen);
 
-app.use(express.static(__dirname, { index: 'index.html' }));
+// El index se sirve con los numeros de version calculados del contenido
+// de cada archivo, asi nadie tiene que acordarse de subirlos a mano.
+function servirIndex(req, res) {
+    res.type('html').send(indexVersionado());
+}
+
+app.get('/', servirIndex);
+app.use(express.static(__dirname, { index: false }));
 
 // Cualquier ruta que no sea de la API devuelve el sitio
 app.get('*', (req, res) => {
     if (req.path.startsWith('/api/')) return res.status(404).json({ error: 'No existe ese endpoint' });
-    res.sendFile(path.join(__dirname, 'index.html'));
+    servirIndex(req, res);
 });
 
 async function arrancar() {

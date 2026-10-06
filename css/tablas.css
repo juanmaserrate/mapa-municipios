@@ -1,0 +1,315 @@
+/* Vista de tabla e historial de cambios */
+/* Parte de la hoja de estilos del Mapa Comercial. El ORDEN de carga importa:
+   ver el orden de los <link> en index.html antes de mover nada. */
+
+/* ============================================================
+   VISTA DE TABLA
+   ============================================================ */
+
+.tabs-vista {
+    position: absolute;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 900;
+    display: flex;
+    gap: 3px;
+    padding: 3px;
+    border-radius: 10px;
+    background: var(--bg-darker);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+}
+
+.tab-vista {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 15px;
+    border: none;
+    border-radius: 8px;
+    background: none;
+    color: var(--text-muted);
+    font-size: 12.5px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tab-vista:hover { background: var(--bg-card-hover); color: var(--text); }
+
+.tab-vista.activa {
+    background: var(--primary);
+    color: #fff;
+}
+
+.vista-tabla {
+    grid-column: 2;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    background: var(--bg-darker);
+    overflow: hidden;
+}
+
+.tabla-barra {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 58px 20px 14px;
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.tabla-info {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    min-width: 0;
+}
+
+.tabla-cantidad {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.tabla-totales {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.tabla-total {
+    font-size: 11.5px;
+    color: var(--text-muted);
+    padding: 2px 9px;
+    border-radius: 20px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+}
+
+.tabla-total strong { color: var(--text); font-weight: 700; }
+.tabla-total.alerta { background: rgba(220,38,38,.1); border-color: rgba(220,38,38,.25); color: #b91c1c; }
+.tabla-total.alerta strong { color: #b91c1c; }
+.tabla-total.aviso { background: rgba(234,88,12,.1); border-color: rgba(234,88,12,.25); color: #c2410c; }
+.tabla-total.aviso strong { color: #c2410c; }
+
+.tabla-excel {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 9px 16px !important;
+}
+
+.tabla-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+
+.tabla-datos {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12.5px;
+}
+
+.tabla-datos thead th {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: var(--bg-card);
+    border-bottom: 1px solid var(--border-light);
+    padding: 10px 12px;
+    text-align: left;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+    cursor: pointer;
+    user-select: none;
+}
+
+.tabla-datos thead th:hover { color: var(--text); background: var(--bg-card-hover); }
+.tabla-datos thead th.ordenada { color: var(--primary); }
+.tabla-datos .flecha { font-size: 8px; opacity: 0.8; }
+
+.tabla-datos tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s;
+}
+
+.tabla-datos tbody tr:hover { background: var(--bg-card); }
+
+.tabla-datos td {
+    padding: 9px 12px;
+    color: var(--text);
+    vertical-align: middle;
+}
+
+.col-municipio { font-weight: 600; white-space: nowrap; }
+.col-fecha { white-space: nowrap; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.col-dias { text-align: center; }
+.col-monto { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; font-weight: 600; }
+.col-quien { white-space: nowrap; color: var(--text-muted); }
+
+.col-notas {
+    max-width: 260px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+}
+
+.col-accion { text-align: right; }
+
+.tabla-punto {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 7px;
+    vertical-align: middle;
+}
+
+.tabla-ir {
+    padding: 4px 11px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-darker);
+    color: var(--text-muted);
+    font-size: 11.5px;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.tabla-ir:hover { border-color: var(--primary); color: var(--primary); }
+
+@media (max-width: 768px) {
+    .vista-tabla { grid-column: 1; }
+    .tabs-vista { top: 10px; left: auto; right: 12px; transform: none; }
+    .tabla-barra {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 56px 14px 12px;
+    }
+    .tabla-excel { width: 100% !important; }
+    .col-notas { max-width: 150px; }
+}
+
+/* ============================================================
+   HISTORIAL DE CAMBIOS
+   ============================================================ */
+
+.hist-filtros {
+    display: flex;
+    gap: 7px;
+    flex-wrap: wrap;
+}
+
+.hist-filtros select {
+    padding: 5px 10px;
+    border-radius: 7px;
+    border: 1px solid var(--border);
+    background: var(--bg-darker);
+    color: var(--text-muted);
+    font-size: 11.5px;
+    font-family: inherit;
+    cursor: pointer;
+}
+
+.hist-filtros select:hover { border-color: var(--border-light); color: var(--text); }
+
+.hist-dia { padding: 0 20px; }
+
+.hist-dia-titulo {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    padding: 12px 0 8px;
+    background: var(--bg-darker);
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+}
+
+.hist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 11px;
+    padding: 9px 11px;
+    border-radius: 10px;
+    border-left: 3px solid transparent;
+    transition: background 0.1s;
+}
+
+.hist-item:hover { background: var(--bg-card); }
+.hist-item.guardar  { border-left-color: #10b981; }
+.hist-item.borrar   { border-left-color: #dc2626; }
+.hist-item.importar { border-left-color: #6366f1; }
+
+.hist-inicial {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, var(--primary), #8b5cf6);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11.5px;
+    font-weight: 700;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.hist-cuerpo { flex: 1; min-width: 0; }
+
+.hist-linea {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.hist-linea strong { color: var(--text); }
+
+.hist-accion {
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.hist-donde {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--primary);
+}
+
+.hist-detalle {
+    margin-top: 2px;
+    font-size: 11.5px;
+    color: var(--text-muted);
+    line-height: 1.45;
+}
+
+.hist-hora {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+    margin-top: 3px;
+}
+
+@media (max-width: 768px) {
+    .hist-dia { padding: 0 12px; }
+    .hist-filtros select { flex: 1; }
+}

@@ -1,0 +1,331 @@
+/* Licitaciones, competidores y avisos por mail */
+/* Parte de la hoja de estilos del Mapa Comercial. El ORDEN de carga importa:
+   ver el orden de los <link> en index.html antes de mover nada. */
+
+/* ============================================================
+   LICITACIONES
+   ============================================================ */
+
+.bloque-panel { margin-bottom: 22px; }
+
+.bloque-titulo {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 10px;
+    padding-bottom: 6px;
+    border-bottom: 1px solid var(--border);
+}
+
+.licitaciones-list {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    margin-bottom: 10px;
+}
+
+.lic-card {
+    padding: 12px 13px;
+    border: 1px solid var(--border);
+    border-radius: 11px;
+    background: var(--bg-card);
+}
+
+.lic-top {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 6px;
+}
+
+.lic-estado {
+    font-size: 10.5px;
+    font-weight: 700;
+    padding: 2px 9px;
+    border-radius: 20px;
+    background: var(--border);
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.lic-estado.oportunidad    { background: rgba(99,102,241,.14);  color: #4338ca; }
+.lic-estado.en-preparacion { background: rgba(14,165,233,.14);  color: #0369a1; }
+.lic-estado.presentada     { background: rgba(234,88,12,.14);   color: #c2410c; }
+.lic-estado.en-evaluacion  { background: rgba(202,138,4,.16);   color: #a16207; }
+.lic-estado.ganada         { background: rgba(5,150,105,.16);   color: #047857; }
+.lic-estado.perdida        { background: rgba(220,38,38,.13);   color: #b91c1c; }
+.lic-estado.desierta,
+.lic-estado.desistida      { background: var(--border);          color: var(--text-muted); }
+.lic-estado.a-clasificar   { background: rgba(234,88,12,.18);   color: #9a3412; }
+
+.lic-exp {
+    font-size: 11px;
+    color: var(--text-dim);
+    font-variant-numeric: tabular-nums;
+}
+
+.lic-objeto {
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text);
+    line-height: 1.35;
+    margin-bottom: 8px;
+}
+
+.lic-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin-bottom: 8px;
+}
+
+.lic-soc {
+    display: inline-flex;
+    align-items: center;
+    font-size: 10.5px;
+    font-weight: 600;
+    padding: 2px 9px;
+    border-radius: 20px;
+    background: var(--bg-card-hover);
+    color: var(--text);
+}
+
+.lic-ute {
+    font-size: 10px;
+    font-weight: 800;
+    padding: 2px 8px;
+    border-radius: 20px;
+    background: #1e293b;
+    color: #fff;
+    letter-spacing: 0.04em;
+}
+
+.monto-badge.adjudicado {
+    background: rgba(5,150,105,.16);
+    color: #047857;
+}
+
+.lic-competidores {
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.lic-editar { width: 100%; }
+
+.monto-adjudicado {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #047857;
+    margin-top: 2px;
+}
+
+.aviso-clasificar .aviso-revisar-btn {
+    border-color: rgba(99,102,241,.35);
+    color: #4338ca;
+}
+.aviso-clasificar .aviso-revisar-btn:hover {
+    background: rgba(99,102,241,.08);
+    border-color: var(--primary);
+}
+.aviso-clasificar { background: rgba(99,102,241,.06); border-bottom-color: rgba(99,102,241,.2) !important; }
+
+/* --- Formulario de licitación --- */
+.form-row-3 { grid-template-columns: 1fr 1fr 1fr; }
+
+.req {
+    font-size: 10px;
+    font-weight: 600;
+    color: #c2410c;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-left: 6px;
+}
+
+.lic-socs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 7px;
+}
+
+.lic-soc-check {
+    display: flex !important;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 12px;
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    background: var(--bg-card);
+    font-size: 12.5px;
+    cursor: pointer;
+    margin: 0 !important;
+    transition: all 0.15s;
+}
+
+.lic-soc-check:hover { border-color: var(--border-light); }
+.lic-soc-check:has(input:checked) {
+    border-color: var(--primary);
+    background: rgba(99,102,241,.08);
+    font-weight: 600;
+}
+.lic-soc-check input { accent-color: var(--primary); cursor: pointer; }
+
+.comp-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 8px;
+}
+
+.comp-header label { margin: 0 !important; }
+
+.comp-agregar {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 5px 13px !important;
+    font-size: 12px !important;
+}
+
+.comp-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 7px;
+}
+
+.comp-fila {
+    display: grid;
+    grid-template-columns: 1fr 120px 110px 28px;
+    gap: 7px;
+    align-items: center;
+}
+
+.comp-fila input,
+.comp-fila select {
+    padding: 7px 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-darker);
+    color: var(--text);
+    font-size: 12.5px;
+    font-family: inherit;
+    min-width: 0;
+}
+
+.comp-quitar {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 7px;
+    background: none;
+    color: var(--text-dim);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+}
+
+.comp-quitar:hover { background: rgba(220,38,38,.1); color: #dc2626; }
+
+.comp-vacio {
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-style: italic;
+    padding: 4px 0;
+}
+
+@media (max-width: 768px) {
+    .form-row-3 { grid-template-columns: 1fr; }
+    .comp-fila { grid-template-columns: 1fr 1fr; }
+    .comp-fila .comp-nombre { grid-column: 1 / -1; }
+}
+
+.monto-nota {
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px dashed var(--border);
+}
+
+/* ============================================================
+   AVISOS POR MAIL
+   ============================================================ */
+
+.avisos-ok, .avisos-off {
+    padding: 11px 14px;
+    border-radius: 10px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+}
+
+.avisos-ok {
+    background: rgba(5, 150, 105, 0.1);
+    border: 1px solid rgba(5, 150, 105, 0.25);
+    color: #047857;
+}
+
+.avisos-off {
+    background: rgba(234, 88, 12, 0.08);
+    border: 1px solid rgba(234, 88, 12, 0.25);
+    color: #c2410c;
+}
+
+.avisos-ok strong, .avisos-off strong { display: block; margin-bottom: 2px; }
+
+.avisos-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.avisos-item {
+    display: grid;
+    grid-template-columns: 110px 1fr auto auto;
+    gap: 10px;
+    align-items: center;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.avisos-quien strong { font-size: 13px; }
+
+.avisos-mail {
+    padding: 7px 11px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--bg-darker);
+    color: var(--text);
+    font-size: 12.5px;
+    font-family: inherit;
+    min-width: 0;
+}
+
+.avisos-item .check-line { white-space: nowrap; }
+
+.avisos-guardar {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 7px 14px !important;
+    font-size: 12px !important;
+}
+
+.avisos-pie {
+    margin-top: 10px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    font-style: italic;
+}
+
+@media (max-width: 768px) {
+    .avisos-item { grid-template-columns: 1fr auto; }
+    .avisos-quien, .avisos-mail { grid-column: 1 / -1; }
+}

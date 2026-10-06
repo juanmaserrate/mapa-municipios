@@ -1,0 +1,30 @@
+name: Pruebas
+
+# Corren solas en cada cambio. Si algo se rompe, aparece en GitHub con
+# una cruz roja antes de que llegue al sitio.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  pruebas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Instalar
+        run: npm ci || npm install
+
+      - name: Revisar que ningún archivo tenga errores de sintaxis
+        run: |
+          for f in server.js js/*.js api/*.js db/*.js lib/*.js jobs/*.js; do
+            node --check "$f" || exit 1
+          done
+
+      - name: Correr las pruebas
+        run: npm test

@@ -4,7 +4,9 @@
   "description": "Mapa Comercial - Real Catorce - Municipios Buenos Aires",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "node server.js",
+    "test": "node --test test/*.js",
+    "alertas": "node jobs/correr.js"
   },
   "dependencies": {
     "express": "^4.19.2",

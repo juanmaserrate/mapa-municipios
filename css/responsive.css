@@ -1,0 +1,119 @@
+/* Vista de celular: cajon deslizante y hoja inferior */
+/* Parte de la hoja de estilos del Mapa Comercial. El ORDEN de carga importa:
+   ver el orden de los <link> en index.html antes de mover nada. */
+
+/* ============================================================
+   CELULAR: el mapa ocupa toda la pantalla y el panel se abre
+   como cajon deslizante por encima
+   ============================================================ */
+
+.sidebar-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 23, 42, 0.45);
+    z-index: 1400;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+}
+
+@media (max-width: 768px) {
+    /* El sidebar sale del grid (queda fixed), asi que el mapa ocupa
+       la unica columna tanto abierto como cerrado */
+    .app,
+    .app.sidebar-collapsed {
+        grid-template-columns: 1fr;
+        grid-template-rows: 1fr;
+        overflow-x: hidden;
+    }
+
+    .sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 86%;
+        max-width: 330px;
+        z-index: 1500;
+        border-right: 1px solid var(--border);
+        box-shadow: 10px 0 36px rgba(15, 23, 42, 0.28);
+        transform: translateX(-100%);
+        transition: transform 0.25s ease;
+    }
+
+    .app:not(.sidebar-collapsed) .sidebar {
+        transform: translateX(0);
+        pointer-events: auto;
+    }
+
+    .app:not(.sidebar-collapsed) .sidebar-overlay {
+        display: block;
+        opacity: 1;
+    }
+
+    /* El boton para abrir el panel queda siempre a mano */
+    .sidebar-open-btn {
+        display: flex;
+        width: 42px;
+        height: 42px;
+    }
+
+    .app:not(.sidebar-collapsed) .sidebar-open-btn {
+        display: none;
+    }
+
+    /* El panel se abre como hoja desde abajo y deja ver el mapa arriba */
+    .details-panel {
+        top: auto;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        width: 100%;
+        height: 58%;
+        border-left: none;
+        border-top: 1px solid var(--border);
+        border-radius: 18px 18px 0 0;
+        transform: translateY(100%);
+        box-shadow: 0 -10px 34px rgba(15, 23, 42, 0.22);
+    }
+
+    .details-panel.open {
+        transform: translateY(0);
+    }
+
+    /* Manija visual arriba de la hoja */
+    .details-panel::before {
+        content: '';
+        position: absolute;
+        top: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 40px;
+        height: 4px;
+        border-radius: 2px;
+        background: var(--border-light);
+    }
+
+    .details-header {
+        padding-top: 20px;
+    }
+
+    .details-header h2 { font-size: 17px; }
+
+    /* Los controles de zoom no se pisan con el boton del panel */
+    .leaflet-top.leaflet-left { margin-top: 52px; }
+
+    /* Evita que el celular haga zoom solo al tocar un campo */
+    .form-group input,
+    .form-group select,
+    .form-group textarea,
+    .search-box input {
+        font-size: 16px;
+    }
+
+    /* Etiquetas de partidos un poco mas chicas para que no tapen el mapa */
+    .partido-label { font-size: 10px !important; }
+
+    /* El tooltip de hover no aplica en celular */
+    .leyenda-partido { display: none !important; }
+}

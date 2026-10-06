@@ -1,0 +1,246 @@
+/* Medidor de espacio, restaurar copias y municipios a revisar */
+/* Parte de la hoja de estilos del Mapa Comercial. El ORDEN de carga importa:
+   ver el orden de los <link> en index.html antes de mover nada. */
+
+/* ============================================================
+   SEGURIDAD DE LOS DATOS
+   Medidor de espacio, restaurar copias, datos ilegibles
+   ============================================================ */
+
+.espacio-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+
+.espacio-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.espacio-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.espacio-valor {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.espacio-barra {
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.espacio-llena {
+    height: 100%;
+    width: 0;
+    border-radius: 3px;
+    background: #10b981;
+    transition: width 0.3s, background 0.3s;
+}
+
+.espacio-box.alerta .espacio-llena { background: #f59e0b; }
+.espacio-box.critico .espacio-llena { background: #dc2626; }
+.espacio-box.critico .espacio-valor { color: #b91c1c; }
+
+.btn-link {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 11.5px;
+    font-family: inherit;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.btn-link:hover { color: var(--primary-hover); }
+
+/* --- Modal restaurar / datos ilegibles --- */
+.restaurar-body {
+    padding: 18px 24px 22px;
+    overflow-y: auto;
+}
+
+.aviso-texto {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+}
+
+.restaurar-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.restaurar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.restaurar-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.restaurar-info strong {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.restaurar-info span {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.restaurar-item button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 6px 14px !important;
+    font-size: 12px !important;
+}
+
+.rotos-acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.rotos-acciones button { flex: 1; }
+
+/* La pantalla de datos ilegibles no se puede cerrar por error */
+.modal-bloqueo { backdrop-filter: blur(6px); }
+.modal-bloqueo .modal-content { max-width: 480px; }
+
+/* ============================================================
+   MUNICIPIOS A REVISAR
+   ============================================================ */
+
+.aviso-revisar {
+    background: rgba(234, 88, 12, 0.07);
+    border-bottom: 1px solid rgba(234, 88, 12, 0.2) !important;
+}
+
+.aviso-revisar-btn {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 9px 11px;
+    border: 1px solid rgba(234, 88, 12, 0.35);
+    border-radius: 9px;
+    background: var(--bg-darker);
+    color: #c2410c;
+    font-size: 12.5px;
+    font-family: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.aviso-revisar-btn:hover {
+    background: rgba(234, 88, 12, 0.08);
+    border-color: #ea580c;
+}
+
+.aviso-revisar-btn svg { flex-shrink: 0; }
+.aviso-revisar-btn strong { font-weight: 700; }
+
+.revisar-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 55vh;
+    overflow-y: auto;
+}
+
+.revisar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-left: 4px solid #ea580c;
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.revisar-info {
+    flex: 1 1 140px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.revisar-info strong { font-size: 13px; color: var(--text); }
+.revisar-info span { font-size: 11.5px; color: var(--text-muted); }
+
+.revisar-select {
+    flex: 1 1 160px;
+    padding: 7px 10px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--bg-darker);
+    color: var(--text);
+    font-size: 12.5px;
+    font-family: inherit;
+}
+
+.revisar-btn {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 7px 16px !important;
+    font-size: 12px !important;
+}
+
+.revisar-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+@media (max-width: 768px) {
+    .revisar-item { flex-wrap: wrap; }
+    .revisar-info, .revisar-select { flex: 1 1 100%; }
+    .revisar-btn { flex: 1 0 100% !important; width: 100% !important; }
+}
+
+.search-sin-mapa {
+    font-size: 9.5px;
+    font-weight: 600;
+    padding: 1px 6px;
+    border-radius: 20px;
+    background: var(--border);
+    color: var(--text-muted);
+    white-space: nowrap;
+    flex-shrink: 0;
+}
