@@ -74,6 +74,18 @@ const api = {
         return this.pedir('/importar-local' + q, { method: 'POST', body: JSON.stringify(datos) });
     },
 
+    leerLicitaciones() {
+        return this.pedir('/licitaciones');
+    },
+
+    guardarLicitacion(lic) {
+        return this.pedir('/licitaciones', { method: 'POST', body: JSON.stringify(lic) });
+    },
+
+    borrarLicitacion(id) {
+        return this.pedir('/licitaciones/' + encodeURIComponent(id), { method: 'DELETE' });
+    },
+
     // Historial: lo puede ver cualquier perfil
     historial(limite) {
         return this.pedir('/historial?limite=' + (limite || 300));

@@ -7,6 +7,7 @@ const path = require('path');
 const { aplicarMigraciones } = require('./db/migrar');
 const { hayBase } = require('./db/pool');
 const apiDatos = require('./api/datos');
+const apiLicitaciones = require('./api/licitaciones');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -26,6 +27,7 @@ app.use((req, res, next) => {
 });
 
 app.use('/api', apiDatos);
+app.use('/api', apiLicitaciones);
 
 app.use(express.static(__dirname, { index: 'index.html' }));
 

@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css?v=19">
+    <link rel="stylesheet" href="css/style.css?v=20">
 </head>
 <body>
     <div class="app">
@@ -45,6 +45,15 @@
             </div>
 
             <div class="barra-conexion" id="barraConexion" style="display:none"></div>
+
+            <div class="sidebar-section aviso-revisar aviso-clasificar" id="avisoClasificar" style="display:none">
+                <button class="aviso-revisar-btn" id="btnClasificar">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M3 6h18M7 12h10M11 18h2"/>
+                    </svg>
+                    <span><strong id="cantClasificar">0</strong> licitaciones a clasificar</span>
+                </button>
+            </div>
 
             <div class="sidebar-section aviso-revisar" id="avisoRevisar" style="display:none">
                 <button class="aviso-revisar-btn" id="btnRevisarMunicipios">
@@ -134,8 +143,9 @@
                 </div>
                 <div class="montos-box">
                     <div class="monto-total">
-                        <span class="monto-label">Monto total cargado</span>
+                        <span class="monto-label">Ofertado en curso</span>
                         <span class="monto-value" id="montoTotal">$ 0</span>
+                        <span class="monto-adjudicado" id="montoAdjudicado" style="display:none"></span>
                     </div>
                     <div class="monto-sub" id="montoDetalle"></div>
                 </div>
@@ -256,16 +266,29 @@
             </div>
 
             <div class="details-body">
-                <div id="inscripcionesList" class="inscripciones-list">
-                    <!-- Lista de sociedades inscriptas -->
+                <div class="bloque-panel">
+                    <h3 class="bloque-titulo">Altas en el municipio</h3>
+                    <div id="inscripcionesList" class="inscripciones-list">
+                        <!-- Lista de sociedades inscriptas -->
+                    </div>
+                    <button class="btn-primary" id="btnAddInscripcion">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Agregar sociedad a este partido
+                    </button>
                 </div>
 
-                <button class="btn-primary" id="btnAddInscripcion">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                        <path d="M12 5v14M5 12h14"/>
-                    </svg>
-                    Agregar sociedad a este partido
-                </button>
+                <div class="bloque-panel">
+                    <h3 class="bloque-titulo">Licitaciones</h3>
+                    <div id="licitacionesList" class="licitaciones-list"></div>
+                    <button class="btn-primary" id="btnAddLicitacion">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 5v14M5 12h14"/>
+                        </svg>
+                        Agregar licitación
+                    </button>
+                </div>
             </div>
         </aside>
     </div>
@@ -332,7 +355,9 @@
                     <span class="hint" id="hintVto"></span>
                 </div>
 
-                <div class="form-group">
+                <!-- El monto paso a la licitacion, que es donde corresponde.
+                     El campo queda oculto para no romper el codigo que lo lee. -->
+                <div class="form-group" style="display:none">
                     <label>Monto de la licitación (ARS)</label>
                     <input type="text" id="fieldMonto" inputmode="numeric" placeholder="Ej: 45.000.000">
                     <span class="hint" id="hintMonto"></span>
@@ -408,6 +433,102 @@
                 <div class="form-actions">
                     <button type="button" class="btn-secondary" id="btnCancelClient">Cancelar</button>
                     <button type="submit" class="btn-primary">Crear sociedad</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal: licitación -->
+    <div class="modal" id="modalLicitacion" style="display:none">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h2 id="modalLicitacionTitle">Licitación</h2>
+                <button class="btn-close" id="btnCloseLicitacion">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <form id="licitacionForm">
+                <div class="form-group">
+                    <label>Objeto <span class="req">obligatorio</span></label>
+                    <input type="text" id="licObjeto" placeholder="Ej: Servicio alimentario escolar 2027" required>
+                </div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Expediente</label>
+                        <input type="text" id="licExpediente" placeholder="Ej: 4091-1234/26">
+                    </div>
+                    <div class="form-group">
+                        <label>Tipo</label>
+                        <input type="text" id="licTipo" placeholder="Ej: Licitación pública">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Sociedad con la que nos presentamos</label>
+                    <div class="lic-socs" id="licSociedades"></div>
+                    <span class="hint">Si se presenta en UTE, marcá más de una.</span>
+                </div>
+
+                <div class="form-group">
+                    <label>Estado del proceso</label>
+                    <select id="licEstado"></select>
+                </div>
+
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>Publicación</label>
+                        <input type="date" id="licFechaPublicacion">
+                    </div>
+                    <div class="form-group">
+                        <label>Apertura</label>
+                        <input type="date" id="licFechaApertura">
+                    </div>
+                    <div class="form-group">
+                        <label>Resultado</label>
+                        <input type="date" id="licFechaResultado">
+                    </div>
+                </div>
+
+                <div class="form-row form-row-3">
+                    <div class="form-group">
+                        <label>Presupuesto oficial</label>
+                        <input type="text" id="licPresupuesto" inputmode="numeric" placeholder="$">
+                    </div>
+                    <div class="form-group">
+                        <label>Ofertamos</label>
+                        <input type="text" id="licOfertado" inputmode="numeric" placeholder="$">
+                    </div>
+                    <div class="form-group">
+                        <label>Adjudicado</label>
+                        <input type="text" id="licAdjudicado" inputmode="numeric" placeholder="$">
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label>Plazo del contrato (meses)</label>
+                    <input type="number" id="licPlazo" min="0" placeholder="Ej: 12">
+                </div>
+
+                <div class="form-group">
+                    <div class="comp-header">
+                        <label>Competidores</label>
+                        <button type="button" class="btn-secondary comp-agregar" id="btnAgregarCompetidor">+ Agregar</button>
+                    </div>
+                    <div class="comp-lista" id="licCompetidores"></div>
+                </div>
+
+                <div class="form-group">
+                    <label>Notas</label>
+                    <textarea id="licNotas" rows="3" placeholder="Observaciones del proceso..."></textarea>
+                </div>
+
+                <div class="form-actions">
+                    <button type="button" class="btn-danger" id="btnBorrarLicitacion" style="display:none">Eliminar</button>
+                    <button type="button" class="btn-secondary" id="btnCancelarLicitacion">Cancelar</button>
+                    <button type="submit" class="btn-primary">Guardar</button>
                 </div>
             </form>
         </div>
@@ -550,11 +671,12 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/api.js?v=19"></script>
-    <script src="js/municipios.js?v=19"></script>
-    <script src="js/data.js?v=19"></script>
-    <script src="js/tabla.js?v=19"></script>
-    <script src="js/historial.js?v=19"></script>
-    <script src="js/app.js?v=19"></script>
+    <script src="js/api.js?v=20"></script>
+    <script src="js/municipios.js?v=20"></script>
+    <script src="js/data.js?v=20"></script>
+    <script src="js/licitaciones.js?v=20"></script>
+    <script src="js/tabla.js?v=20"></script>
+    <script src="js/historial.js?v=20"></script>
+    <script src="js/app.js?v=20"></script>
 </body>
 </html>

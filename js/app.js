@@ -48,6 +48,7 @@ window.addEventListener('DOMContentLoaded', async () => {
         state.inscripciones = (datos.inscripciones || []).map(normalizarInscripcion);
         state.perfiles = datos.perfiles || [];
         state.filtros.clientes = state.clientes.map(c => c.id);
+        await licitaciones.cargar();
         guardarCacheLocal();
     } else {
         // Sin servidor: se sigue trabajando con lo último que vio este navegador
@@ -66,6 +67,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     populateClientSelect();
     actualizarMedidorEspacio();
     actualizarAvisoRevisar();
+    actualizarAvisoClasificar();
     actualizarBarraConexion();
     avisarVencimientos();
 
@@ -118,6 +120,7 @@ async function recargarDesdeServidor() {
     state.perfiles = datos.perfiles || [];
     state.filtros.clientes = state.filtros.clientes.filter(id => state.clientes.some(c => c.id === id));
     state.clientes.forEach(c => { if (!state.filtros.clientes.includes(c.id)) state.filtros.clientes.push(c.id); });
+    await licitaciones.cargar();
     invalidarIndice();
     guardarCacheLocal();
     renderClientFilters();
@@ -983,6 +986,7 @@ function abrirPanelPartido(municipioONombre) {
     state.selectedPartido = muni.nombre;
     document.getElementById('detailsTitle').textContent = muni.nombre;
     renderInscripcionesList();
+    licitaciones.renderEnPanel(muni.id);
     document.getElementById('detailsPanel').classList.add('open');
 }
 
@@ -1274,21 +1278,36 @@ function actualizarContadoresVto() {
 }
 
 function actualizarMontos() {
+    // Los montos salen de las licitaciones. El `monto` de la inscripción
+    // quedó sólo por compatibilidad: migró a licitaciones "a clasificar".
     let total = 0;
-    const porCliente = {};
-    state.inscripciones.forEach(i => {
-        const m = Number(i.monto);
-        if (!i.monto || isNaN(m)) return;
-        total += m;
-        porCliente[i.clienteId] = (porCliente[i.clienteId] || 0) + m;
-    });
+    let porCliente = {};
+
+    if (modoServidor && typeof licitaciones !== 'undefined' && licitaciones.lista.length) {
+        const t = licitaciones.totales();
+        total = t.ofertadoVivo;
+        porCliente = t.porSociedad;
+        const adj = document.getElementById('montoAdjudicado');
+        if (adj) {
+            adj.textContent = t.adjudicado ? formatMonto(t.adjudicado) + ' ganados' : '';
+            adj.style.display = t.adjudicado ? '' : 'none';
+        }
+    } else {
+        state.inscripciones.forEach(i => {
+            const m = Number(i.monto);
+            if (!i.monto || isNaN(m)) return;
+            total += m;
+            porCliente[i.clienteId] = (porCliente[i.clienteId] || 0) + m;
+        });
+    }
+
     document.getElementById('montoTotal').textContent = formatMonto(total) || '$ 0';
 
     const detalle = document.getElementById('montoDetalle');
     detalle.innerHTML = '';
     const ids = Object.keys(porCliente).sort((a, b) => porCliente[b] - porCliente[a]);
     if (!ids.length) {
-        detalle.innerHTML = '<div class="monto-empty">Sin montos cargados todavía</div>';
+        detalle.innerHTML = '<div class="monto-empty">Sin licitaciones con monto todavía</div>';
         return;
     }
     ids.forEach(id => {
@@ -1643,6 +1662,16 @@ function bindUI() {
 
     document.getElementById('btnCloseDetails').addEventListener('click', cerrarPanel);
     document.getElementById('btnAddInscripcion').addEventListener('click', () => abrirModalInscripcion(null));
+    document.getElementById('btnAddLicitacion').addEventListener('click', () => licitaciones.abrirModal(null));
+    document.getElementById('licitacionForm').addEventListener('submit', (e) => licitaciones.guardar(e));
+    document.getElementById('btnCloseLicitacion').addEventListener('click', () => licitaciones.cerrarModal());
+    document.getElementById('btnCancelarLicitacion').addEventListener('click', () => licitaciones.cerrarModal());
+    document.getElementById('btnBorrarLicitacion').addEventListener('click', () => licitaciones.borrar());
+    document.getElementById('btnAgregarCompetidor').addEventListener('click', () => licitaciones.agregarCompetidor());
+    document.getElementById('modalLicitacion').addEventListener('click', (e) => {
+        if (e.target.id === 'modalLicitacion') licitaciones.cerrarModal();
+    });
+    document.getElementById('btnClasificar').addEventListener('click', irAClasificar);
 
     document.getElementById('inscripcionForm').addEventListener('submit', guardarInscripcion);
     document.getElementById('btnDeleteInscripcion').addEventListener('click', eliminarInscripcionActual);
@@ -1704,7 +1733,8 @@ function bindUI() {
     });
     document.addEventListener('keydown', (e) => {
         if (e.key !== 'Escape') return;
-        if (document.getElementById('modalInscripcion').style.display === 'flex') cerrarModalInscripcion();
+        if (document.getElementById('modalLicitacion').style.display === 'flex') licitaciones.cerrarModal();
+        else if (document.getElementById('modalInscripcion').style.display === 'flex') cerrarModalInscripcion();
         else if (document.getElementById('modalClient').style.display === 'flex') cerrarModalCliente();
         else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
     });
@@ -2169,6 +2199,24 @@ async function aplicarMigracion(datos, forzar) {
 // Inscripciones cuyo nombre de municipio no coincide con ninguno real.
 // No se adivinan: las resuelve una persona.
 // ============================================================
+
+function actualizarAvisoClasificar() {
+    const aviso = document.getElementById('avisoClasificar');
+    if (!aviso || typeof licitaciones === 'undefined') return;
+    const cant = licitaciones.aClasificar().length;
+    document.getElementById('cantClasificar').textContent = cant;
+    aviso.style.display = cant ? '' : 'none';
+}
+
+function irAClasificar() {
+    const pendientes = licitaciones.aClasificar();
+    if (!pendientes.length) return;
+    const primera = pendientes[0];
+    mostrarVista('mapa');
+    abrirPanelPartido(primera.municipioId);
+    licitaciones.abrirModal(primera.id);
+    toast(`Quedan ${pendientes.length} por clasificar`, 'warning');
+}
 
 function actualizarAvisoRevisar() {
     detectarMunicipiosSinResolver();
