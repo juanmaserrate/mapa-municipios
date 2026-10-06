@@ -166,6 +166,15 @@ router.post('/perfiles', async (req, res) => {
     }
 });
 
+router.delete('/perfiles/:id', async (req, res) => {
+    try {
+        await consultar('UPDATE perfiles SET activo = FALSE WHERE id = $1', [req.params.id]);
+        res.json({ ok: true });
+    } catch (e) {
+        res.status(500).json({ error: e.message });
+    }
+});
+
 // ---------- Migración desde el navegador ----------
 // Nunca decide sola: primero simula y devuelve un informe en castellano.
 
