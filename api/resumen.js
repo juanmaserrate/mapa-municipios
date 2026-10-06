@@ -148,7 +148,7 @@ router.get('/resumen', async (req, res) => {
 
             // --- Plata comprometida por mes: adjudicado dividido el plazo ---
             consultar(`
-                SELECT COALESCE(SUM(monto_adjudicado / NULLIF(plazo_meses, 0)), 0) AS por_mes,
+                SELECT COALESCE(ROUND(SUM(monto_adjudicado / NULLIF(plazo_meses, 0))), 0) AS por_mes,
                        COUNT(*) FILTER (WHERE plazo_meses IS NULL OR plazo_meses = 0)::int AS sin_plazo
                   FROM licitaciones
                  WHERE estado_proceso = 'ganada' AND monto_adjudicado IS NOT NULL
@@ -167,7 +167,7 @@ router.get('/resumen', async (req, res) => {
                 ganado: Number(p.ganado),
                 perdido: Number(p.perdido),
                 desvioPresupuesto: desvio === null ? null : Number(desvio.toFixed(1)),
-                comprometidoPorMes: Number(comprometido[0].por_mes),
+                comprometidoPorMes: Math.round(Number(comprometido[0].por_mes)),
                 ganadasSinPlazo: comprometido[0].sin_plazo,
                 totalLicitaciones: p.total
             },
