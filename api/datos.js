@@ -274,6 +274,40 @@ router.post('/importar-local', async (req, res) => {
     }
 });
 
+// ---------- Historial ----------
+// Abierto a todos los perfiles: el usuario pidio que todos puedan verlo.
+
+router.get('/historial', async (req, res) => {
+    const limite = Math.min(Number(req.query.limite) || 300, 1000);
+    try {
+        const filas = await consultar(
+            `SELECT a.*, m.nombre AS municipio_nombre, s.nombre AS sociedad_nombre
+               FROM auditoria a
+               LEFT JOIN inscripciones i ON i.id = a.entidad_id AND a.entidad = 'inscripcion'
+               LEFT JOIN municipios m ON m.id = COALESCE(i.municipio_id, (a.despues->>'municipioId')::int)
+               LEFT JOIN sociedades s ON s.id = COALESCE(i.sociedad_id, a.despues->>'clienteId')
+              ORDER BY a.fecha DESC
+              LIMIT $1`,
+            [limite]
+        );
+        res.json(filas.map(f => ({
+            id: f.id,
+            fecha: f.fecha,
+            quien: f.perfil_nombre || 'Sin identificar',
+            accion: f.accion,
+            entidad: f.entidad,
+            entidadId: f.entidad_id,
+            municipio: f.municipio_nombre || null,
+            sociedad: f.sociedad_nombre || null,
+            antes: f.antes,
+            despues: f.despues
+        })));
+    } catch (e) {
+        console.error('[api] error leyendo historial:', e.message);
+        res.status(500).json({ error: 'No se pudo leer el historial: ' + e.message });
+    }
+});
+
 // ---------- Salud y respaldo ----------
 
 router.get('/salud', async (req, res) => {

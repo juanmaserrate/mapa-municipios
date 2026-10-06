@@ -74,6 +74,11 @@ const api = {
         return this.pedir('/importar-local' + q, { method: 'POST', body: JSON.stringify(datos) });
     },
 
+    // Historial: lo puede ver cualquier perfil
+    historial(limite) {
+        return this.pedir('/historial?limite=' + (limite || 300));
+    },
+
     salud() {
         return this.pedir('/salud');
     }

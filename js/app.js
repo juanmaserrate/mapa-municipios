@@ -127,6 +127,10 @@ async function recargarDesdeServidor() {
     actualizarAvisoRevisar();
     actualizarBarraConexion();
     if (state.selectedMunicipioId) renderInscripcionesList();
+
+    const vh = document.getElementById('vistaHistorial');
+    if (typeof historial !== 'undefined' && vh && vh.style.display !== 'none') historial.cargar();
+
     return true;
 }
 
@@ -832,6 +836,11 @@ function estiloPartido(feature, hover) {
 }
 
 function refrescarPartidos() {
+    // La tabla usa los mismos filtros: se mantiene al día con el mapa
+    if (typeof tabla !== 'undefined' && document.getElementById('vistaTabla') &&
+        document.getElementById('vistaTabla').style.display !== 'none') {
+        tabla.render();
+    }
     if (!partidosLayer) return;
     construirIndice();
     partidosLayer.eachLayer(layer => {
@@ -1699,6 +1708,13 @@ function bindUI() {
         else if (document.getElementById('modalClient').style.display === 'flex') cerrarModalCliente();
         else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
     });
+
+    document.querySelectorAll('.tab-vista').forEach(t => {
+        t.addEventListener('click', () => mostrarVista(t.dataset.vista));
+    });
+    // El Excel lo puede bajar cualquier perfil, también el de solo lectura
+    document.getElementById('btnExcel').addEventListener('click', () => tabla.exportarExcel());
+    document.getElementById('btnExcelHistorial').addEventListener('click', () => historial.exportarExcel());
 
     document.getElementById('btnClosePerfil').addEventListener('click', cerrarSelectorPerfil);
     document.getElementById('btnCrearPerfil').addEventListener('click', crearPerfilNuevo);

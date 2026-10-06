@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css?v=17">
+    <link rel="stylesheet" href="css/style.css?v=19">
 </head>
 <body>
     <div class="app">
@@ -183,10 +183,66 @@
             </div>
         </aside>
 
+        <!-- Selector de vista -->
+        <div class="tabs-vista" id="tabsVista">
+            <button class="tab-vista activa" data-vista="mapa">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M14.5 4.5 9.5 2 3 4.8v16.4l6.5-2.8 5 2.5 6.5-2.8V1.8l-6.5 2.7ZM9.5 2v16.4M14.5 4.5v16.4"/>
+                </svg>
+                Mapa
+            </button>
+            <button class="tab-vista" data-vista="tabla">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>
+                </svg>
+                Tabla
+            </button>
+            <button class="tab-vista" data-vista="historial">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <path d="M12 8v4l3 2"/><circle cx="12" cy="12" r="9"/>
+                </svg>
+                Historial
+            </button>
+        </div>
+
         <!-- Mapa principal -->
         <main class="map-container">
             <div id="map"></div>
         </main>
+
+        <!-- Vista de tabla -->
+        <section class="vista-tabla" id="vistaTabla" style="display:none">
+            <div class="tabla-barra">
+                <div class="tabla-info">
+                    <span class="tabla-cantidad" id="tablaResumen">—</span>
+                    <div class="tabla-totales" id="tablaTotales"></div>
+                </div>
+                <button class="btn-primary tabla-excel" id="btnExcel">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Descargar Excel
+                </button>
+            </div>
+            <div class="tabla-scroll" id="tablaContenido"></div>
+        </section>
+
+        <!-- Vista de historial: quién cambió qué. La ve cualquier perfil. -->
+        <section class="vista-tabla" id="vistaHistorial" style="display:none">
+            <div class="tabla-barra">
+                <div class="tabla-info">
+                    <span class="tabla-cantidad" id="historialResumen">—</span>
+                    <div class="hist-filtros" id="historialFiltros"></div>
+                </div>
+                <button class="btn-primary tabla-excel" id="btnExcelHistorial">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3"/>
+                    </svg>
+                    Descargar Excel
+                </button>
+            </div>
+            <div class="tabla-scroll" id="historialContenido"></div>
+        </section>
 
         <!-- Panel de detalles del partido (derecha) -->
         <aside class="details-panel" id="detailsPanel">
@@ -494,9 +550,11 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/api.js?v=17"></script>
-    <script src="js/municipios.js?v=17"></script>
-    <script src="js/data.js?v=17"></script>
-    <script src="js/app.js?v=17"></script>
+    <script src="js/api.js?v=19"></script>
+    <script src="js/municipios.js?v=19"></script>
+    <script src="js/data.js?v=19"></script>
+    <script src="js/tabla.js?v=19"></script>
+    <script src="js/historial.js?v=19"></script>
+    <script src="js/app.js?v=19"></script>
 </body>
 </html>
