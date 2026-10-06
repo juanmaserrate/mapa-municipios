@@ -18,6 +18,8 @@ let state = {
         vto: null
     },
     selectedPartido: null,
+    selectedMunicipioId: null,
+    municipiosSinResolver: [],
     editingInscripcionId: null,
     archivosTemp: [],
     datosIlegibles: false
@@ -25,7 +27,6 @@ let state = {
 
 let map;
 let partidosLayer = null;
-let nombresPartidos = [];
 let partidoDestacado = null;
 let timerDestaque = null;
 
@@ -48,6 +49,7 @@ window.addEventListener('DOMContentLoaded', () => {
     bindUI();
     populateClientSelect();
     actualizarMedidorEspacio();
+    actualizarAvisoRevisar();
     avisarVencimientos();
 
     // En celular el panel arranca cerrado para que se vea el mapa entero
@@ -183,13 +185,15 @@ function aplicarPatchesIniciales() {
     PATCHES.forEach(patch => {
         if (aplicados.includes(patch.id)) return;
         patch.items.forEach(item => {
+            const muni = resolverMunicipio(item.partido);
             const existe = state.inscripciones.find(i =>
-                normalizar(i.partido) === normalizar(item.partido) &&
+                (muni ? i.municipioId === muni.id : normalizar(i.partido) === normalizar(item.partido)) &&
                 i.clienteId === item.clienteId
             );
             if (!existe) {
-                state.inscripciones.push({
+                state.inscripciones.push(normalizarInscripcion({
                     id: 'ins_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5),
+                    municipioId: muni ? muni.id : null,
                     partido: item.partido,
                     clienteId: item.clienteId,
                     estado: item.estado,
@@ -201,7 +205,7 @@ function aplicarPatchesIniciales() {
                     monto: item.monto !== undefined ? item.monto : null,
                     archivos: [],
                     creado: new Date().toISOString()
-                });
+                }));
                 cambios = true;
             } else if (item.actualizar) {
                 CAMPOS_PATCHEABLES.forEach(campo => {
@@ -355,7 +359,9 @@ function espacioUsado() {
 
 function cargarDatosIniciales() {
     state.clientes = [...CLIENTES_INICIALES];
-    state.inscripciones = INSCRIPCIONES_INICIALES.map((i, idx) => ({
+    // normalizarInscripcion resuelve el municipioId: sin eso las inscripciones
+    // iniciales quedaban sin municipio y no se pintaban en el mapa
+    state.inscripciones = INSCRIPCIONES_INICIALES.map((i, idx) => normalizarInscripcion({
         id: 'ins_' + Date.now() + '_' + idx,
         partido: i.partido,
         clienteId: i.clienteId,
@@ -376,6 +382,7 @@ function cargarDatosIniciales() {
 // memoria para que la pantalla no muestre algo que no quedo guardado.
 function guardarDatos() {
     if (state.datosIlegibles) return false;
+    invalidarIndice();
 
     const anterior = localStorage.getItem(STORAGE_KEY);
     const payload = JSON.stringify({
@@ -421,7 +428,7 @@ const DIAS_CRITICO = 30;
 const DIAS_PROXIMO = 90;
 
 function normalizarInscripcion(i) {
-    return {
+    const base = {
         fechaAlta: '',
         fechaVto: '',
         sinVto: false,
@@ -429,6 +436,48 @@ function normalizarInscripcion(i) {
         ...i,
         archivos: i.archivos || []
     };
+    // Identidad real del municipio. Si ya la tiene se respeta; si no, se
+    // resuelve por nombre EXACTO. Lo que no resuelve queda en null y aparece
+    // en la pantalla de revisión en vez de adivinarse.
+    if (base.municipioId === undefined || base.municipioId === null || !MUNICIPIOS_POR_ID[base.municipioId]) {
+        const m = resolverMunicipio(base.partido);
+        base.municipioId = m ? m.id : null;
+    }
+    // El nombre pasa a ser solo una etiqueta: el que manda es el id
+    if (base.municipioId) base.partido = nombreMunicipio(base.municipioId);
+    return base;
+}
+
+// Inscripciones cuyo municipio no se pudo identificar: hay que revisarlas a mano
+function detectarMunicipiosSinResolver() {
+    state.municipiosSinResolver = state.inscripciones.filter(i => !i.municipioId);
+}
+
+// ============================================================
+// INDICE POR MUNICIPIO
+// Antes cada uno de los 135 poligonos recorria TODAS las inscripciones en
+// cada refresco (y el refresco se dispara en cada tecla del buscador).
+// Ahora se arma un indice una sola vez por refresco.
+// ============================================================
+
+let indiceMunicipios = null;
+
+function construirIndice() {
+    indiceMunicipios = {};
+    state.inscripciones.forEach(i => {
+        if (!i.municipioId) return;
+        (indiceMunicipios[i.municipioId] = indiceMunicipios[i.municipioId] || []).push(i);
+    });
+    return indiceMunicipios;
+}
+
+function inscripcionesDeMunicipio(municipioId) {
+    if (!indiceMunicipios) construirIndice();
+    return indiceMunicipios[municipioId] || [];
+}
+
+function invalidarIndice() {
+    indiceMunicipios = null;
 }
 
 // Devuelve dias restantes hasta el vencimiento (negativo = vencido), o null si no aplica
@@ -499,13 +548,10 @@ function inscripcionesConAlerta(nivel) {
     }).sort((a, b) => (diasHastaVto(a) - diasHastaVto(b)));
 }
 
-function partidoTieneAlerta(nombrePartido) {
-    const n = normalizar(nombrePartido);
+function partidoTieneAlerta(municipioId) {
     let peor = null;
-    state.inscripciones.forEach(i => {
+    inscripcionesDeMunicipio(municipioId).forEach(i => {
         if (!inscripcionPasaFiltros(i)) return;
-        const m = normalizar(i.partido);
-        if (!(m === n || m.includes(n) || n.includes(m))) return;
         const nv = nivelVto(i);
         if (nv === 'vencido') peor = 'vencido';
         else if (nv === 'critico' && peor !== 'vencido') peor = 'critico';
@@ -541,7 +587,8 @@ function inicializarMapa() {
 }
 
 function cargarPartidos() {
-    fetch('data/partidos-buenos-aires.geojson?v=2', { cache: 'no-cache' })
+    // Archivo de 1,78 MB que no cambia: se versiona y se deja cachear
+    fetch('data/partidos-buenos-aires.geojson?v=3')
         .then(r => r.json())
         .then(geojson => {
             partidosLayer = L.geoJSON(geojson, {
@@ -558,24 +605,20 @@ function cargarPartidos() {
                     layer.on('mouseover', () => {
                         layer.setStyle(estiloPartido(feature, true));
                         layer.bringToFront();
-                        mostrarLeyendaPartido(nombre, layer);
+                        mostrarLeyendaPartido(feature.properties.id, nombre);
                     });
                     layer.on('mouseout', () => {
                         layer.setStyle(estiloPartido(feature, false));
                         ocultarLeyendaPartido();
                     });
                     layer.on('click', () => {
-                        abrirPanelPartido(nombre);
+                        abrirPanelPartido(feature.properties.id);
                         destacarPartido(layer);
                     });
                 }
             });
             partidosLayer.addTo(map);
             partidosLayer.bringToBack();
-            nombresPartidos = geojson.features
-                .map(f => f.properties.nombre || f.properties.departamento)
-                .filter(n => n && !esPartidoExcluido(n))
-                .sort((a, b) => a.localeCompare(b, 'es'));
             actualizarLabelsPartidos();
         })
         .catch(err => {
@@ -584,12 +627,8 @@ function cargarPartidos() {
         });
 }
 
-function inscripcionesDelPartido(nombrePartido) {
-    const n = normalizar(nombrePartido);
-    return state.inscripciones.filter(i => {
-        const m = normalizar(i.partido);
-        return (m === n || m.includes(n) || n.includes(m)) && inscripcionPasaFiltros(i);
-    });
+function inscripcionesDelPartido(municipioId) {
+    return inscripcionesDeMunicipio(municipioId).filter(inscripcionPasaFiltros);
 }
 
 function inscripcionPasaFiltros(i) {
@@ -615,6 +654,7 @@ function inscripcionPasaFiltros(i) {
 
 function estiloPartido(feature, hover) {
     const nombre = feature.properties.nombre || '';
+    const municipioId = feature.properties.id;
 
     // No colorear partidos excluidos (PBAC, BAC, etc.)
     if (esPartidoExcluido(nombre)) {
@@ -627,7 +667,7 @@ function estiloPartido(feature, hover) {
         };
     }
 
-    const inscripciones = inscripcionesDelPartido(nombre);
+    const inscripciones = inscripcionesDelPartido(municipioId);
     const estados = inscripciones.map(i => i.estado);
 
     // Prioridad: inscripto > por-iniciar > no-inscripto > vacío
@@ -644,7 +684,7 @@ function estiloPartido(feature, hover) {
         fillOpacity = hover ? 0.55 : 0.35;
     }
 
-    const alerta = partidoTieneAlerta(nombre);
+    const alerta = partidoTieneAlerta(municipioId);
     if (alerta) {
         const colorAlerta = alerta === 'vencido' ? '#dc2626' : (alerta === 'critico' ? '#ea580c' : '#ca8a04');
         return {
@@ -669,6 +709,7 @@ function estiloPartido(feature, hover) {
 
 function refrescarPartidos() {
     if (!partidosLayer) return;
+    construirIndice();
     partidosLayer.eachLayer(layer => {
         layer.setStyle(estiloPartido(layer.feature, false));
     });
@@ -709,10 +750,10 @@ function actualizarLabelsPartidos() {
 // LEYENDA (TOOLTIP RICO) AL HOVER
 // ============================================================
 
-function mostrarLeyendaPartido(nombre, layer) {
+function mostrarLeyendaPartido(municipioId, nombre) {
     if (esPartidoExcluido(nombre)) return;
 
-    const insc = inscripcionesDelPartido(nombre);
+    const insc = inscripcionesDelPartido(municipioId);
     const el = document.getElementById('leyendaPartido') || crearLeyendaEl();
 
     let html = `<div class="leyenda-titulo">${escapeHtml(nombre)}</div>`;
@@ -788,13 +829,26 @@ function textoEstado(e) {
 // PANEL PARTIDO (CLICK)
 // ============================================================
 
-function abrirPanelPartido(nombrePartido) {
-    if (esPartidoExcluido(nombrePartido)) {
-        toast('Este organismo no se gestiona por partido', 'warning');
+// Acepta el id del municipio (lo normal) o su nombre (por compatibilidad)
+function abrirPanelPartido(municipioONombre) {
+    let muni = null;
+    if (typeof municipioONombre === 'number') {
+        muni = MUNICIPIOS_POR_ID[municipioONombre] || null;
+    } else {
+        if (esPartidoExcluido(municipioONombre)) {
+            toast('Este organismo no se gestiona por partido', 'warning');
+            return;
+        }
+        muni = resolverMunicipio(municipioONombre);
+    }
+    if (!muni) {
+        toast('No se reconoce ese municipio', 'warning');
         return;
     }
-    state.selectedPartido = nombrePartido;
-    document.getElementById('detailsTitle').textContent = nombrePartido;
+
+    state.selectedMunicipioId = muni.id;
+    state.selectedPartido = muni.nombre;
+    document.getElementById('detailsTitle').textContent = muni.nombre;
     renderInscripcionesList();
     document.getElementById('detailsPanel').classList.add('open');
 }
@@ -802,6 +856,7 @@ function abrirPanelPartido(nombrePartido) {
 function cerrarPanel() {
     document.getElementById('detailsPanel').classList.remove('open');
     state.selectedPartido = null;
+    state.selectedMunicipioId = null;
     limpiarDestaque();
 }
 
@@ -825,9 +880,9 @@ function renderMetaInscripcion(i) {
 function renderInscripcionesList() {
     const container = document.getElementById('inscripcionesList');
     container.innerHTML = '';
-    if (!state.selectedPartido) return;
+    if (!state.selectedMunicipioId) return;
 
-    const insc = state.inscripciones.filter(i => normalizar(i.partido) === normalizar(state.selectedPartido));
+    const insc = state.inscripciones.filter(i => i.municipioId === state.selectedMunicipioId);
     if (insc.length === 0) {
         container.innerHTML = '<div class="empty-state">Sin sociedades en este partido todavía.</div>';
         return;
@@ -938,6 +993,7 @@ function guardarInscripcion(e) {
     } else {
         state.inscripciones.push({
             id: nuevoId('ins'),
+            municipioId: state.selectedMunicipioId,
             partido: state.selectedPartido,
             clienteId: clienteId,
             estado: estadoEl.value,
@@ -951,6 +1007,7 @@ function guardarInscripcion(e) {
             creado: new Date().toISOString()
         });
     }
+    invalidarIndice();
     if (!guardarDatos()) {
         // guardarDatos ya deshizo el cambio y avisó; se refresca para que la
         // pantalla muestre lo que realmente quedó guardado
@@ -971,6 +1028,7 @@ function eliminarInscripcionActual() {
     if (!state.editingInscripcionId) return;
     if (!confirm('¿Eliminar esta inscripción?')) return;
     state.inscripciones = state.inscripciones.filter(i => i.id !== state.editingInscripcionId);
+    invalidarIndice();
     if (!guardarDatos()) {
         refrescarPartidos();
         actualizarContadores();
@@ -1136,17 +1194,20 @@ function renderListaVencimientos() {
 // VUELO CINEMATICO Y RESALTADO DE PARTIDO
 // ============================================================
 
-function buscarLayerPartido(nombre) {
+// Busca el poligono por id del municipio. Sin includes(): o es ese, o no es.
+function buscarLayerPartido(municipioONombre) {
     if (!partidosLayer) return null;
-    const n = normalizar(nombre);
-    let exacto = null;
-    let parcial = null;
+    let id = municipioONombre;
+    if (typeof municipioONombre !== 'number') {
+        const m = resolverMunicipio(municipioONombre);
+        if (!m) return null;
+        id = m.id;
+    }
+    let encontrado = null;
     partidosLayer.eachLayer(layer => {
-        const nom = normalizar(layer.feature.properties.nombre || '');
-        if (nom === n) exacto = layer;
-        else if (!parcial && (nom.includes(n) || n.includes(nom))) parcial = layer;
+        if (layer.feature.properties.id === id) encontrado = layer;
     });
-    return exacto || parcial;
+    return encontrado;
 }
 
 // Vuela hasta el partido con animacion y le resalta los bordes
@@ -1157,18 +1218,26 @@ function volarAPartido(nombre, opts = {}) {
     const bounds = layer.getBounds();
 
     // Dejar lugar para el panel: a la derecha en pantalla grande,
-    // abajo cuando se abre como hoja en celular
+    // abajo cuando se abre como hoja en celular.
+    // Los margenes se topean a un 40% del mapa: si no, en ventanas angostas
+    // el margen se come todo el ancho util y Leaflet no puede acercarse.
     const panel = document.getElementById('detailsPanel');
     const abierto = panel.classList.contains('open');
-    let padBR = [70, 70];
+    const tam = map.getSize();
+    const topeX = Math.round(tam.x * 0.4);
+    const topeY = Math.round(tam.y * 0.4);
+
+    let padDerecha = 70;
+    let padAbajo = 70;
     if (abierto) {
-        padBR = esCelular() ? [70, panel.offsetHeight + 40] : [panel.offsetWidth + 70, 70];
+        if (esCelular()) padAbajo = panel.offsetHeight + 40;
+        else padDerecha = panel.offsetWidth + 70;
     }
 
     map.flyToBounds(bounds, {
         maxZoom: opts.maxZoom || 11.5,
-        paddingTopLeft: [70, 70],
-        paddingBottomRight: padBR,
+        paddingTopLeft: [Math.min(70, topeX), Math.min(70, topeY)],
+        paddingBottomRight: [Math.min(padDerecha, topeX), Math.min(padAbajo, topeY)],
         duration: opts.duration || 1.5,
         easeLinearity: 0.22
     });
@@ -1222,13 +1291,13 @@ function renderSugerencias(texto) {
         return;
     }
 
-    const matches = nombresPartidos
-        .filter(n => normalizar(n).includes(q))
+    const matches = MUNICIPIOS
+        .filter(m => !esPartidoExcluido(m.nombre) && normalizarNombreMunicipio(m.nombre).includes(q))
         .sort((a, b) => {
-            const ia = normalizar(a).indexOf(q);
-            const ib = normalizar(b).indexOf(q);
+            const ia = normalizarNombreMunicipio(a.nombre).indexOf(q);
+            const ib = normalizarNombreMunicipio(b.nombre).indexOf(q);
             if (ia !== ib) return ia - ib;
-            return a.length - b.length;
+            return a.nombre.length - b.nombre.length;
         })
         .slice(0, 8);
 
@@ -1239,12 +1308,14 @@ function renderSugerencias(texto) {
     }
 
     cont.innerHTML = '';
-    matches.forEach((nombre, idx) => {
-        const insc = state.inscripciones.filter(i => normalizar(i.partido) === normalizar(nombre));
+    matches.forEach((muni, idx) => {
+        const nombre = muni.nombre;
+        const insc = state.inscripciones.filter(i => i.municipioId === muni.id);
         const item = document.createElement('button');
         item.className = 'search-item';
         item.dataset.idx = idx;
         item.dataset.nombre = nombre;
+        item.dataset.id = muni.id;
 
         const puntos = insc.slice(0, 4).map(i => {
             const c = state.clientes.find(x => x.id === i.clienteId);
@@ -1256,24 +1327,35 @@ function renderSugerencias(texto) {
                 <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/>
             </svg>
             <span class="search-nombre">${escapeHtml(nombre)}</span>
+            ${muni.sinGeometria ? '<span class="search-sin-mapa">sin dibujo</span>' : ''}
             <span class="search-dots">${puntos}</span>
             <span class="search-count">${insc.length || ''}</span>
         `;
-        item.addEventListener('click', () => irAPartido(nombre));
+        item.addEventListener('click', () => irAPartido(muni.id));
         cont.appendChild(item);
     });
     cont.style.display = 'block';
 }
 
-function irAPartido(nombre) {
+function irAPartido(municipioONombre) {
+    const muni = typeof municipioONombre === 'number'
+        ? MUNICIPIOS_POR_ID[municipioONombre]
+        : resolverMunicipio(municipioONombre);
+    if (!muni) return;
+
     document.getElementById('searchResults').style.display = 'none';
-    document.getElementById('searchInput').value = nombre;
+    document.getElementById('searchInput').value = muni.nombre;
     document.getElementById('btnClearSearch').style.display = '';
     state.filtros.busqueda = '';
     refrescarPartidos();
     if (esCelular()) cerrarSidebar();
-    abrirPanelPartido(nombre);
-    volarAPartido(nombre);
+    abrirPanelPartido(muni.id);
+
+    if (muni.sinGeometria) {
+        toast(`${muni.nombre} todavía no está dibujado en el mapa, pero podés cargarle datos`, 'warning');
+        return;
+    }
+    volarAPartido(muni.id);
 }
 
 function limpiarBusqueda() {
@@ -1356,7 +1438,7 @@ function bindUI() {
             const items = document.querySelectorAll('.search-item');
             if (!items.length) return;
             const elegido = items[sugerenciaActiva >= 0 ? sugerenciaActiva : 0];
-            irAPartido(elegido.dataset.nombre);
+            irAPartido(Number(elegido.dataset.id));
         } else if (e.key === 'Escape') {
             document.getElementById('searchResults').style.display = 'none';
         }
@@ -1453,6 +1535,12 @@ function bindUI() {
         if (document.getElementById('modalInscripcion').style.display === 'flex') cerrarModalInscripcion();
         else if (document.getElementById('modalClient').style.display === 'flex') cerrarModalCliente();
         else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
+    });
+
+    document.getElementById('btnRevisarMunicipios').addEventListener('click', abrirModalRevisar);
+    document.getElementById('btnCloseRevisar').addEventListener('click', cerrarModalRevisar);
+    document.getElementById('modalRevisar').addEventListener('click', (e) => {
+        if (e.target.id === 'modalRevisar') cerrarModalRevisar();
     });
 
     document.getElementById('btnRestaurar').addEventListener('click', abrirModalRestaurar);
@@ -1666,6 +1754,7 @@ function importarDatos(e) {
             refrescarPartidos();
             actualizarContadores();
             renderInscripcionesList();
+            actualizarAvisoRevisar();
             toast(opcion === '2'
                 ? `Datos reemplazados: ${state.inscripciones.length} inscripciones`
                 : `Se agregaron ${faltantes} inscripciones nuevas`, 'success');
@@ -1675,6 +1764,81 @@ function importarDatos(e) {
     };
     reader.readAsText(file);
     e.target.value = '';
+}
+
+// ============================================================
+// MUNICIPIOS A REVISAR
+// Inscripciones cuyo nombre de municipio no coincide con ninguno real.
+// No se adivinan: las resuelve una persona.
+// ============================================================
+
+function actualizarAvisoRevisar() {
+    detectarMunicipiosSinResolver();
+    const aviso = document.getElementById('avisoRevisar');
+    if (!aviso) return;
+    const cant = state.municipiosSinResolver.length;
+    document.getElementById('cantRevisar').textContent = cant;
+    aviso.style.display = cant ? '' : 'none';
+}
+
+function abrirModalRevisar() {
+    const cont = document.getElementById('revisarLista');
+    cont.innerHTML = '';
+
+    if (!state.municipiosSinResolver.length) {
+        cont.innerHTML = '<div class="empty-state">No quedan inscripciones sin municipio.</div>';
+    } else {
+        state.municipiosSinResolver.forEach(insc => {
+            const cliente = state.clientes.find(c => c.id === insc.clienteId);
+            const fila = document.createElement('div');
+            fila.className = 'revisar-item';
+
+            const opciones = MUNICIPIOS
+                .map(m => `<option value="${m.id}">${escapeHtml(m.nombre)}</option>`)
+                .join('');
+
+            fila.innerHTML = `
+                <div class="revisar-info">
+                    <strong>${escapeHtml(insc.partido || '(sin nombre)')}</strong>
+                    <span>${escapeHtml(cliente ? cliente.nombre : 'Sin sociedad')} · ${textoEstado(insc.estado)}</span>
+                </div>
+                <select class="revisar-select">
+                    <option value="">Elegir municipio...</option>
+                    ${opciones}
+                </select>
+                <button class="btn-primary revisar-btn" disabled>Asignar</button>
+            `;
+
+            const select = fila.querySelector('select');
+            const boton = fila.querySelector('button');
+            // Sugerencia: el municipio cuyo nombre mas se parece, pero NO se aplica solo
+            const sugerido = MUNICIPIOS.find(m => normalizarNombreMunicipio(m.nombre).startsWith(normalizar(insc.partido).slice(0, 4)));
+            if (sugerido) select.value = sugerido.id;
+            boton.disabled = !select.value;
+
+            select.addEventListener('change', () => { boton.disabled = !select.value; });
+            boton.addEventListener('click', () => {
+                const m = MUNICIPIOS_POR_ID[Number(select.value)];
+                if (!m) return;
+                insc.municipioId = m.id;
+                insc.partido = m.nombre;
+                insc.actualizado = new Date().toISOString();
+                if (!guardarDatos()) return;
+                refrescarPartidos();
+                actualizarContadores();
+                actualizarAvisoRevisar();
+                abrirModalRevisar();
+                toast(`Asignado a ${m.nombre}`, 'success');
+            });
+
+            cont.appendChild(fila);
+        });
+    }
+    document.getElementById('modalRevisar').style.display = 'flex';
+}
+
+function cerrarModalRevisar() {
+    document.getElementById('modalRevisar').style.display = 'none';
 }
 
 // ============================================================
@@ -1749,6 +1913,7 @@ function restaurarCopia(copia) {
     populateClientSelect();
     refrescarPartidos();
     actualizarContadores();
+    actualizarAvisoRevisar();
     cerrarModalRestaurar();
     toast('Copia restaurada', 'success');
 }
