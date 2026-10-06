@@ -1282,11 +1282,13 @@ function actualizarMontos() {
     // quedó sólo por compatibilidad: migró a licitaciones "a clasificar".
     let total = 0;
     let porCliente = {};
+    let hayUte = false;
 
     if (modoServidor && typeof licitaciones !== 'undefined' && licitaciones.lista.length) {
         const t = licitaciones.totales();
         total = t.ofertadoVivo;
         porCliente = t.porSociedad;
+        hayUte = t.hayUte;
         const adj = document.getElementById('montoAdjudicado');
         if (adj) {
             adj.textContent = t.adjudicado ? formatMonto(t.adjudicado) + ' ganados' : '';
@@ -1321,6 +1323,13 @@ function actualizarMontos() {
         `;
         detalle.appendChild(row);
     });
+
+    if (hayUte) {
+        const nota = document.createElement('div');
+        nota.className = 'monto-nota';
+        nota.textContent = 'Las licitaciones en UTE cuentan entero en cada sociedad, por eso el detalle puede sumar más que el total.';
+        detalle.appendChild(nota);
+    }
 }
 
 // ============================================================

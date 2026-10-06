@@ -262,17 +262,21 @@ const licitaciones = {
     // ---------- Totales para el panel izquierdo ----------
 
     totales() {
-        let ofertadoVivo = 0, adjudicado = 0;
+        let ofertadoVivo = 0, adjudicado = 0, hayUte = false;
         const porSociedad = {};
         this.lista.forEach(l => {
+            if (l.sociedades.length > 1) hayUte = true;
             if (ESTADOS_VIVOS.includes(l.estadoProceso) && l.montoOfertado) {
                 ofertadoVivo += Number(l.montoOfertado);
+                // En una UTE el monto se cuenta entero para cada sociedad: las dos
+                // participan del mismo contrato. Por eso el detalle puede sumar mas
+                // que el total, y se aclara abajo del desglose.
                 l.sociedades.forEach(s => { porSociedad[s] = (porSociedad[s] || 0) + Number(l.montoOfertado); });
             }
             if (l.estadoProceso === 'ganada' && l.montoAdjudicado) {
                 adjudicado += Number(l.montoAdjudicado);
             }
         });
-        return { ofertadoVivo, adjudicado, porSociedad, cantidad: this.lista.length };
+        return { ofertadoVivo, adjudicado, porSociedad, hayUte, cantidad: this.lista.length };
     }
 };

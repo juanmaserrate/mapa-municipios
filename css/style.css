@@ -2752,3 +2752,13 @@ input, textarea, select { font-family: inherit; }
     .comp-fila { grid-template-columns: 1fr 1fr; }
     .comp-fila .comp-nombre { grid-column: 1 / -1; }
 }
+
+.monto-nota {
+    font-size: 10.5px;
+    line-height: 1.4;
+    color: var(--text-dim);
+    font-style: italic;
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px dashed var(--border);
+}
