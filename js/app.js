@@ -1287,15 +1287,17 @@ function actualizarMontos() {
     let porCliente = {};
     let hayUte = false;
 
-    if (modoServidor && typeof licitaciones !== 'undefined' && licitaciones.lista.length) {
+    const adj = document.getElementById('montoAdjudicado');
+    if (adj) { adj.textContent = ''; adj.style.display = 'none'; }
+
+    if (modoServidor && typeof licitaciones !== 'undefined') {
         const t = licitaciones.totales();
         total = t.ofertadoVivo;
         porCliente = t.porSociedad;
         hayUte = t.hayUte;
-        const adj = document.getElementById('montoAdjudicado');
-        if (adj) {
-            adj.textContent = t.adjudicado ? formatMonto(t.adjudicado) + ' ganados' : '';
-            adj.style.display = t.adjudicado ? '' : 'none';
+        if (adj && t.adjudicado) {
+            adj.textContent = formatMonto(t.adjudicado) + ' ganados';
+            adj.style.display = '';
         }
     } else {
         state.inscripciones.forEach(i => {
