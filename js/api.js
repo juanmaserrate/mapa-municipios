@@ -91,6 +91,21 @@ const api = {
         return this.pedir('/historial?limite=' + (limite || 300));
     },
 
+    estadoAvisos() {
+        return this.pedir('/alertas/estado');
+    },
+
+    guardarDestinatario(perfilId, email, recibe) {
+        return this.pedir('/alertas/destinatario', {
+            method: 'POST',
+            body: JSON.stringify({ perfilId, email, recibe })
+        });
+    },
+
+    mandarAvisoAhora() {
+        return this.pedir('/jobs/alertas?forzar=si', { method: 'POST' });
+    },
+
     salud() {
         return this.pedir('/salud');
     }

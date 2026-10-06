@@ -1782,6 +1782,13 @@ function bindUI() {
         if (e.target.id === 'modalRevisar') cerrarModalRevisar();
     });
 
+    document.getElementById('btnAvisos').addEventListener('click', abrirModalAvisos);
+    document.getElementById('btnCloseAvisos').addEventListener('click', cerrarModalAvisos);
+    document.getElementById('btnProbarAviso').addEventListener('click', mandarAvisoAhora);
+    document.getElementById('modalAvisos').addEventListener('click', (e) => {
+        if (e.target.id === 'modalAvisos') cerrarModalAvisos();
+    });
+
     document.getElementById('btnRestaurar').addEventListener('click', abrirModalRestaurar);
     document.getElementById('btnCloseRestaurar').addEventListener('click', cerrarModalRestaurar);
     document.getElementById('modalRestaurar').addEventListener('click', (e) => {
@@ -2307,6 +2314,109 @@ function abrirModalRevisar() {
 
 function cerrarModalRevisar() {
     document.getElementById('modalRevisar').style.display = 'none';
+}
+
+// ============================================================
+// AVISOS POR MAIL
+// ============================================================
+
+async function abrirModalAvisos() {
+    document.getElementById('modalAvisos').style.display = 'flex';
+    const cajaEstado = document.getElementById('avisosEstado');
+    const lista = document.getElementById('avisosLista');
+    cajaEstado.innerHTML = '<div class="empty-state">Consultando...</div>';
+    lista.innerHTML = '';
+
+    if (!modoServidor) {
+        cajaEstado.innerHTML = '<div class="avisos-off">Los avisos necesitan el servidor.</div>';
+        return;
+    }
+
+    let datos;
+    try {
+        datos = await api.estadoAvisos();
+    } catch (e) {
+        cajaEstado.innerHTML = `<div class="avisos-off">No se pudo consultar: ${escapeHtml(e.message)}</div>`;
+        return;
+    }
+
+    if (!datos.configurado) {
+        cajaEstado.innerHTML = `
+            <div class="avisos-off">
+                <strong>Todavía no está conectado el correo.</strong>
+                Falta cargar las credenciales de Microsoft en el servidor.
+                Hasta entonces se puede dejar configurado quién va a recibir los avisos.
+            </div>`;
+    } else if (datos.conexion && datos.conexion.ok) {
+        cajaEstado.innerHTML = `
+            <div class="avisos-ok">
+                <strong>Conectado con Microsoft.</strong>
+                Los avisos salen desde ${escapeHtml(datos.conexion.remitente || '')}.
+            </div>`;
+    } else {
+        cajaEstado.innerHTML = `
+            <div class="avisos-off">
+                <strong>El correo está configurado pero no responde.</strong>
+                ${escapeHtml((datos.conexion && datos.conexion.error) || '')}
+            </div>`;
+    }
+
+    lista.innerHTML = '';
+    (datos.perfiles || []).forEach(p => {
+        const fila = document.createElement('div');
+        fila.className = 'avisos-item';
+        fila.innerHTML = `
+            <div class="avisos-quien">
+                <strong>${escapeHtml(p.nombre)}</strong>
+            </div>
+            <input type="email" class="avisos-mail" value="${escapeHtml(p.email || '')}" placeholder="correo@realcatorce.com.ar">
+            <label class="check-line">
+                <input type="checkbox" class="avisos-check" ${p.recibe_alertas ? 'checked' : ''}>
+                <span>Recibe</span>
+            </label>
+            <button class="btn-secondary avisos-guardar">Guardar</button>
+        `;
+        fila.querySelector('.avisos-guardar').addEventListener('click', async () => {
+            const email = fila.querySelector('.avisos-mail').value.trim();
+            const recibe = fila.querySelector('.avisos-check').checked;
+            if (recibe && !email) { toast('Para recibir avisos hace falta un correo', 'error'); return; }
+            try {
+                await api.guardarDestinatario(p.id || p.nombre, email, recibe);
+                toast(`Guardado para ${p.nombre}`, 'success');
+            } catch (e) {
+                toast('No se pudo guardar: ' + e.message, 'error');
+            }
+        });
+        lista.appendChild(fila);
+    });
+
+    if (datos.ultimosAvisos && datos.ultimosAvisos.length) {
+        const ultimo = datos.ultimosAvisos[0];
+        const pie = document.createElement('div');
+        pie.className = 'avisos-pie';
+        pie.textContent = 'Último aviso enviado: ' + fechaLegible(String(ultimo.enviado_en).slice(0, 10));
+        lista.appendChild(pie);
+    }
+}
+
+function cerrarModalAvisos() {
+    document.getElementById('modalAvisos').style.display = 'none';
+}
+
+async function mandarAvisoAhora() {
+    const btn = document.getElementById('btnProbarAviso');
+    btn.disabled = true;
+    btn.textContent = 'Enviando...';
+    try {
+        const r = await api.mandarAvisoAhora();
+        if (r.enviado) toast(`Aviso enviado a ${r.destinatarios} ${r.destinatarios === 1 ? 'persona' : 'personas'}`, 'success');
+        else toast(r.motivo || 'No había nada para avisar', 'warning');
+    } catch (e) {
+        toast('No se pudo enviar: ' + e.message, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Mandar el aviso ahora';
+    }
 }
 
 // ============================================================
