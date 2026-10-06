@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css?v=14">
+    <link rel="stylesheet" href="css/style.css?v=15">
 </head>
 <body>
     <div class="app">
@@ -145,6 +145,14 @@
             </div>
 
             <div class="sidebar-section sidebar-bottom">
+                <div class="espacio-box" id="espacioBox">
+                    <div class="espacio-top">
+                        <span class="espacio-label">Espacio usado</span>
+                        <span class="espacio-valor" id="espacioValor">—</span>
+                    </div>
+                    <div class="espacio-barra"><div class="espacio-llena" id="espacioLlena"></div></div>
+                    <button class="btn-link" id="btnRestaurar">Restaurar una copia anterior</button>
+                </div>
                 <div class="actions-row">
                     <button class="btn-secondary" id="btnExport" title="Exportar datos">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -360,11 +368,49 @@
         </div>
     </div>
 
+    <!-- Modal: restaurar copia de seguridad -->
+    <div class="modal" id="modalRestaurar" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Restaurar una copia</h2>
+                <button class="btn-close" id="btnCloseRestaurar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="restaurar-body">
+                <p class="aviso-texto">El sitio guarda una copia antes de cada cambio y una por día. Las copias no incluyen los archivos adjuntos.</p>
+                <div class="restaurar-lista" id="restaurarLista"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pantalla de datos ilegibles -->
+    <div class="modal modal-bloqueo" id="modalDatosRotos" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>No se pudieron leer tus datos</h2>
+            </div>
+            <div class="restaurar-body">
+                <p class="aviso-texto">
+                    Los datos guardados en este navegador están dañados. <strong>No se borró nada</strong>:
+                    quedaron guardados aparte tal como estaban. Elegí cómo seguir.
+                </p>
+                <div class="restaurar-lista" id="rotosLista"></div>
+                <div class="rotos-acciones">
+                    <button class="btn-secondary" id="btnDescargarRotos">Descargar los datos dañados</button>
+                    <button class="btn-danger" id="btnEmpezarDeCero">Empezar de cero</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Toast notifications -->
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/data.js?v=14"></script>
-    <script src="js/app.js?v=14"></script>
+    <script src="js/data.js?v=15"></script>
+    <script src="js/app.js?v=15"></script>
 </body>
 </html>

@@ -1739,3 +1739,145 @@ input, textarea, select { font-family: inherit; }
     .modal form { padding: 14px 18px 0; }
     .modal form .form-actions { padding-bottom: 14px; }
 }
+
+/* ============================================================
+   SEGURIDAD DE LOS DATOS
+   Medidor de espacio, restaurar copias, datos ilegibles
+   ============================================================ */
+
+.espacio-box {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 12px;
+    margin-bottom: 10px;
+}
+
+.espacio-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 6px;
+}
+
+.espacio-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+}
+
+.espacio-valor {
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--text);
+    font-variant-numeric: tabular-nums;
+}
+
+.espacio-barra {
+    height: 5px;
+    border-radius: 3px;
+    background: var(--border);
+    overflow: hidden;
+}
+
+.espacio-llena {
+    height: 100%;
+    width: 0;
+    border-radius: 3px;
+    background: #10b981;
+    transition: width 0.3s, background 0.3s;
+}
+
+.espacio-box.alerta .espacio-llena { background: #f59e0b; }
+.espacio-box.critico .espacio-llena { background: #dc2626; }
+.espacio-box.critico .espacio-valor { color: #b91c1c; }
+
+.btn-link {
+    display: block;
+    width: 100%;
+    margin-top: 8px;
+    padding: 0;
+    background: none;
+    border: none;
+    color: var(--primary);
+    font-size: 11.5px;
+    font-family: inherit;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.btn-link:hover { color: var(--primary-hover); }
+
+/* --- Modal restaurar / datos ilegibles --- */
+.restaurar-body {
+    padding: 18px 24px 22px;
+    overflow-y: auto;
+}
+
+.aviso-texto {
+    font-size: 12.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    margin-bottom: 14px;
+}
+
+.restaurar-lista {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.restaurar-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--bg-card);
+}
+
+.restaurar-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+}
+
+.restaurar-info strong {
+    font-size: 13px;
+    color: var(--text);
+}
+
+.restaurar-info span {
+    font-size: 11.5px;
+    color: var(--text-muted);
+}
+
+.restaurar-item button {
+    flex: 0 0 auto !important;
+    width: auto !important;
+    padding: 6px 14px !important;
+    font-size: 12px !important;
+}
+
+.rotos-acciones {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.rotos-acciones button { flex: 1; }
+
+/* La pantalla de datos ilegibles no se puede cerrar por error */
+.modal-bloqueo { backdrop-filter: blur(6px); }
+.modal-bloqueo .modal-content { max-width: 480px; }

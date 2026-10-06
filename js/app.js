@@ -3,6 +3,10 @@
 // ============================================================
 
 const STORAGE_KEY = 'mapa_comercial_data';
+const BACKUP_ULTIMO = 'mapa_comercial_backup_ultimo';   // estado previo al ultimo guardado
+const BACKUP_DIA = 'mapa_comercial_backup_dia_';        // + YYYY-MM-DD, primera version de cada dia
+const DIAS_BACKUP = 7;
+const PREFIJO_ROTO = 'mapa_comercial_roto_';            // copia textual de datos ilegibles
 
 let state = {
     clientes: [],
@@ -15,7 +19,8 @@ let state = {
     },
     selectedPartido: null,
     editingInscripcionId: null,
-    archivosTemp: []
+    archivosTemp: [],
+    datosIlegibles: false
 };
 
 let map;
@@ -30,12 +35,19 @@ let timerDestaque = null;
 
 window.addEventListener('DOMContentLoaded', () => {
     cargarDatos();
+
+    if (state.datosIlegibles) {
+        mostrarPantallaDatosRotos();
+        return;
+    }
+
     aplicarPatchesIniciales();
     inicializarMapa();
     renderClientFilters();
     actualizarContadores();
     bindUI();
     populateClientSelect();
+    actualizarMedidorEspacio();
     avisarVencimientos();
 
     // En celular el panel arranca cerrado para que se vea el mapa entero
@@ -238,12 +250,107 @@ function cargarDatos() {
             guardarDatos();
         } catch (e) {
             console.error('Error cargando datos:', e);
-            cargarDatosIniciales();
+            // NUNCA sobrescribir: se guarda el texto ilegible aparte y se frena
+            // la carga para que el usuario decida. Antes se pisaba con la semilla
+            // y el trabajo cargado desaparecia sin aviso.
+            guardarCopiaIlegible(saved);
+            state.datosIlegibles = true;
+            state.filtros.clientes = [];
+            return;
         }
     } else {
         cargarDatosIniciales();
     }
     state.filtros.clientes = state.clientes.map(c => c.id);
+}
+
+function guardarCopiaIlegible(texto) {
+    try {
+        localStorage.setItem(PREFIJO_ROTO + new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-'), texto);
+    } catch (e) {
+        console.error('No se pudo guardar la copia de los datos ilegibles:', e);
+    }
+}
+
+// ============================================================
+// RESPALDOS AUTOMATICOS
+// Se guardan sin los archivos adjuntos: son lo unico pesado y
+// asi el respaldo ocupa unos pocos KB en vez de megas.
+// ============================================================
+
+function versionLiviana(texto) {
+    const d = JSON.parse(texto);
+    return JSON.stringify({
+        fecha: new Date().toISOString(),
+        clientes: d.clientes || [],
+        inscripciones: (d.inscripciones || []).map(i => ({ ...i, archivos: [] }))
+    });
+}
+
+function guardarRespaldos(textoAnterior) {
+    if (!textoAnterior) return;
+    let liviano;
+    try {
+        liviano = versionLiviana(textoAnterior);
+    } catch (e) {
+        return;
+    }
+    try {
+        localStorage.setItem(BACKUP_ULTIMO, liviano);
+        // La primera version de cada dia se conserva: da historia de varios dias
+        const claveHoy = BACKUP_DIA + new Date().toISOString().slice(0, 10);
+        if (!localStorage.getItem(claveHoy)) {
+            localStorage.setItem(claveHoy, liviano);
+            limpiarRespaldosViejos();
+        }
+    } catch (e) {
+        // Si no entra el respaldo no se interrumpe el guardado principal
+        console.warn('No se pudo guardar el respaldo:', e);
+    }
+}
+
+function limpiarRespaldosViejos() {
+    const limite = new Date();
+    limite.setDate(limite.getDate() - DIAS_BACKUP);
+    const corte = limite.toISOString().slice(0, 10);
+    Object.keys(localStorage)
+        .filter(k => k.startsWith(BACKUP_DIA) && k.slice(BACKUP_DIA.length) < corte)
+        .forEach(k => localStorage.removeItem(k));
+}
+
+function listarRespaldos() {
+    const items = [];
+    const ultimo = localStorage.getItem(BACKUP_ULTIMO);
+    if (ultimo) items.push({ clave: BACKUP_ULTIMO, etiqueta: 'Antes del último cambio', contenido: ultimo });
+    Object.keys(localStorage)
+        .filter(k => k.startsWith(BACKUP_DIA))
+        .sort().reverse()
+        .forEach(k => {
+            items.push({
+                clave: k,
+                etiqueta: 'Inicio del ' + fechaLegible(k.slice(BACKUP_DIA.length)),
+                contenido: localStorage.getItem(k)
+            });
+        });
+    return items.map(it => {
+        try {
+            const d = JSON.parse(it.contenido);
+            return { ...it, cantidad: (d.inscripciones || []).length };
+        } catch (e) {
+            return { ...it, cantidad: null };
+        }
+    }).filter(it => it.cantidad !== null);
+}
+
+// Espacio ocupado en el navegador (aproximado: el navegador cuenta 2 bytes por caracter)
+function espacioUsado() {
+    let caracteres = 0;
+    Object.keys(localStorage).forEach(k => {
+        caracteres += k.length + (localStorage.getItem(k) || '').length;
+    });
+    const bytes = caracteres * 2;
+    const limite = 5 * 1024 * 1024;
+    return { bytes, limite, porcentaje: Math.min(100, Math.round((bytes / limite) * 100)) };
 }
 
 function cargarDatosIniciales() {
@@ -265,14 +372,39 @@ function cargarDatosIniciales() {
     guardarDatos();
 }
 
+// Devuelve true si realmente se guardo. Si no entra, deshace el cambio en
+// memoria para que la pantalla no muestre algo que no quedo guardado.
 function guardarDatos() {
+    if (state.datosIlegibles) return false;
+
+    const anterior = localStorage.getItem(STORAGE_KEY);
+    const payload = JSON.stringify({
+        clientes: state.clientes,
+        inscripciones: state.inscripciones
+    });
+
     try {
-        localStorage.setItem(STORAGE_KEY, JSON.stringify({
-            clientes: state.clientes,
-            inscripciones: state.inscripciones
-        }));
+        localStorage.setItem(STORAGE_KEY, payload);
     } catch (e) {
-        toast('Error: límite de almacenamiento alcanzado. Exporta y borra archivos pesados.', 'error');
+        revertirAlUltimoGuardado(anterior);
+        toast('No hay más espacio: el cambio se deshizo. Borrá archivos adjuntos pesados o exportá y limpiá.', 'error');
+        actualizarMedidorEspacio();
+        return false;
+    }
+
+    guardarRespaldos(anterior);
+    actualizarMedidorEspacio();
+    return true;
+}
+
+function revertirAlUltimoGuardado(textoAnterior) {
+    if (!textoAnterior) return;
+    try {
+        const d = JSON.parse(textoAnterior);
+        state.clientes = d.clientes || [];
+        state.inscripciones = (d.inscripciones || []).map(normalizarInscripcion);
+    } catch (e) {
+        console.error('No se pudo deshacer el cambio:', e);
     }
 }
 
@@ -805,7 +937,7 @@ function guardarInscripcion(e) {
         }
     } else {
         state.inscripciones.push({
-            id: 'ins_' + Date.now(),
+            id: nuevoId('ins'),
             partido: state.selectedPartido,
             clienteId: clienteId,
             estado: estadoEl.value,
@@ -819,7 +951,14 @@ function guardarInscripcion(e) {
             creado: new Date().toISOString()
         });
     }
-    guardarDatos();
+    if (!guardarDatos()) {
+        // guardarDatos ya deshizo el cambio y avisó; se refresca para que la
+        // pantalla muestre lo que realmente quedó guardado
+        refrescarPartidos();
+        actualizarContadores();
+        renderInscripcionesList();
+        return;
+    }
     refrescarPartidos();
     actualizarContadores();
     renderClientFilters();
@@ -832,7 +971,12 @@ function eliminarInscripcionActual() {
     if (!state.editingInscripcionId) return;
     if (!confirm('¿Eliminar esta inscripción?')) return;
     state.inscripciones = state.inscripciones.filter(i => i.id !== state.editingInscripcionId);
-    guardarDatos();
+    if (!guardarDatos()) {
+        refrescarPartidos();
+        actualizarContadores();
+        renderInscripcionesList();
+        return;
+    }
     refrescarPartidos();
     actualizarContadores();
     renderClientFilters();
@@ -1311,6 +1455,12 @@ function bindUI() {
         else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
     });
 
+    document.getElementById('btnRestaurar').addEventListener('click', abrirModalRestaurar);
+    document.getElementById('btnCloseRestaurar').addEventListener('click', cerrarModalRestaurar);
+    document.getElementById('modalRestaurar').addEventListener('click', (e) => {
+        if (e.target.id === 'modalRestaurar') cerrarModalRestaurar();
+    });
+
     document.getElementById('btnExport').addEventListener('click', exportarDatos);
     document.getElementById('btnImport').addEventListener('click', () => document.getElementById('importFile').click());
     document.getElementById('importFile').addEventListener('change', importarDatos);
@@ -1320,11 +1470,15 @@ function bindUI() {
 // ARCHIVOS
 // ============================================================
 
+const MAX_ARCHIVO = 1024 * 1024; // 1 MB: al guardarse como texto ocupa ~2.7x
+
 function cargarArchivos(e) {
     const files = Array.from(e.target.files);
     files.forEach(file => {
-        if (file.size > 2 * 1024 * 1024) {
-            toast(`"${file.name}" supera 2MB - puede saturar almacenamiento`, 'warning');
+        // Limite real: un archivo de 2MB ocupa mas que todo el espacio disponible
+        if (file.size > MAX_ARCHIVO) {
+            toast(`"${file.name}" pesa ${formatBytes(file.size)} y el máximo es 1 MB. Subilo a Drive y pegá el link en las notas.`, 'error');
+            return;
         }
         const reader = new FileReader();
         reader.onload = (event) => {
@@ -1414,7 +1568,11 @@ function crearCliente(e) {
     const id = nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '_' + Date.now().toString(36);
     state.clientes.push({ id, nombre, color });
     state.filtros.clientes.push(id);
-    guardarDatos();
+    if (!guardarDatos()) {
+        state.clientes = state.clientes.filter(c => c.id !== id);
+        state.filtros.clientes = state.filtros.clientes.filter(c => c !== id);
+        return;
+    }
     renderClientFilters();
     populateClientSelect();
     cerrarModalCliente();
@@ -1432,13 +1590,7 @@ function exportarDatos() {
         clientes: state.clientes,
         inscripciones: state.inscripciones
     };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `mapa-comercial-${new Date().toISOString().split('T')[0]}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
+    descargarJSON(data, `mapa-comercial-${new Date().toISOString().split('T')[0]}.json`);
     toast('Datos exportados', 'success');
 }
 
@@ -1454,19 +1606,71 @@ function importarDatos(e) {
                 estado: p.estado === 'concursando' ? 'por-iniciar' : p.estado,
                 descripcion: p.descripcion || '', notas: p.notas || '', archivos: p.archivos || []
             }));
-            if (!data.clientes || !inscripciones) throw new Error('Formato inválido');
-            if (!confirm(`Importar ${inscripciones.length} inscripciones y ${data.clientes.length} sociedades? Reemplaza los datos actuales.`)) return;
-            state.clientes = data.clientes;
-            state.inscripciones = inscripciones.filter(i => !esPartidoExcluido(i.partido)).map(normalizarInscripcion);
+            if (!Array.isArray(data.clientes)) throw new Error('Formato inválido: faltan las sociedades');
+            if (!Array.isArray(inscripciones)) throw new Error('Formato inválido: faltan las inscripciones');
+            if (!inscripciones.length) throw new Error('El archivo no trae ninguna inscripción');
+
+            const nuevas = inscripciones
+                .filter(i => !esPartidoExcluido(i.partido))
+                .map(normalizarInscripcion);
+
+            // Cuántas de las que vienen ya existen acá
+            const yaEstan = nuevas.filter(n => state.inscripciones.some(
+                a => normalizar(a.partido) === normalizar(n.partido) && a.clienteId === n.clienteId
+            )).length;
+            const faltantes = nuevas.length - yaEstan;
+
+            const opcion = prompt(
+                `El archivo trae ${nuevas.length} inscripciones y ${data.clientes.length} sociedades.\n` +
+                `De esas, ${yaEstan} ya están en este navegador y ${faltantes} son nuevas.\n\n` +
+                `Escribí una opción:\n` +
+                `  1 = Agregar solo las que faltan (no toca lo que ya tenés)\n` +
+                `  2 = Reemplazar todo por el archivo\n\n` +
+                `Antes de cualquiera de las dos se descarga una copia de lo que tenés ahora.`,
+                '1'
+            );
+            if (opcion !== '1' && opcion !== '2') { toast('Importación cancelada', 'warning'); return; }
+
+            // Respaldo automático antes de tocar nada
+            descargarJSON(
+                { version: '2.0', motivo: 'antes-de-importar', exportado: new Date().toISOString(), clientes: state.clientes, inscripciones: state.inscripciones },
+                `mapa-comercial-antes-de-importar-${new Date().toISOString().slice(0, 10)}.json`
+            );
+
+            const previas = state.clientes.slice();
+            const previasInsc = state.inscripciones.slice();
+
+            if (opcion === '2') {
+                state.clientes = data.clientes;
+                state.inscripciones = nuevas;
+            } else {
+                data.clientes.forEach(c => {
+                    if (!state.clientes.some(x => x.id === c.id)) state.clientes.push(c);
+                });
+                nuevas.forEach(n => {
+                    const existe = state.inscripciones.some(
+                        a => normalizar(a.partido) === normalizar(n.partido) && a.clienteId === n.clienteId
+                    );
+                    if (!existe) state.inscripciones.push({ ...n, id: n.id || nuevoId('ins') });
+                });
+            }
+
             state.filtros.clientes = state.clientes.map(c => c.id);
-            guardarDatos();
+            if (!guardarDatos()) {
+                state.clientes = previas;
+                state.inscripciones = previasInsc;
+                return;
+            }
             renderClientFilters();
             populateClientSelect();
             refrescarPartidos();
             actualizarContadores();
-            toast('Datos importados', 'success');
+            renderInscripcionesList();
+            toast(opcion === '2'
+                ? `Datos reemplazados: ${state.inscripciones.length} inscripciones`
+                : `Se agregaron ${faltantes} inscripciones nuevas`, 'success');
         } catch (err) {
-            toast('Error al importar: archivo inválido', 'error');
+            toast('No se pudo importar: ' + err.message, 'error');
         }
     };
     reader.readAsText(file);
@@ -1474,8 +1678,153 @@ function importarDatos(e) {
 }
 
 // ============================================================
+// SEGURIDAD DE LOS DATOS (medidor, restaurar, datos ilegibles)
+// ============================================================
+
+function actualizarMedidorEspacio() {
+    const box = document.getElementById('espacioBox');
+    if (!box) return;
+    const { bytes, limite, porcentaje } = espacioUsado();
+    document.getElementById('espacioValor').textContent =
+        `${formatBytes(bytes)} de ${formatBytes(limite)}`;
+    const barra = document.getElementById('espacioLlena');
+    barra.style.width = porcentaje + '%';
+    box.classList.toggle('alerta', porcentaje >= 75);
+    box.classList.toggle('critico', porcentaje >= 90);
+}
+
+function abrirModalRestaurar() {
+    const cont = document.getElementById('restaurarLista');
+    const copias = listarRespaldos();
+    cont.innerHTML = '';
+
+    if (!copias.length) {
+        cont.innerHTML = '<div class="empty-state">Todavía no hay copias guardadas. Se crean solas con el primer cambio.</div>';
+    } else {
+        copias.forEach(c => {
+            const fila = document.createElement('div');
+            fila.className = 'restaurar-item';
+            fila.innerHTML = `
+                <div class="restaurar-info">
+                    <strong>${escapeHtml(c.etiqueta)}</strong>
+                    <span>${c.cantidad} inscripcion${c.cantidad === 1 ? '' : 'es'}</span>
+                </div>
+                <button class="btn-secondary">Restaurar</button>
+            `;
+            fila.querySelector('button').addEventListener('click', () => restaurarCopia(c));
+            cont.appendChild(fila);
+        });
+    }
+    document.getElementById('modalRestaurar').style.display = 'flex';
+}
+
+function cerrarModalRestaurar() {
+    document.getElementById('modalRestaurar').style.display = 'none';
+}
+
+function restaurarCopia(copia) {
+    const actuales = state.inscripciones.length;
+    if (!confirm(
+        `Vas a reemplazar las ${actuales} inscripciones de ahora por las ${copia.cantidad} de "${copia.etiqueta}".\n\n` +
+        `Antes se descarga un archivo con lo que tenés ahora, por las dudas.\n\n¿Seguimos?`
+    )) return;
+
+    descargarJSON(
+        { version: '2.0', motivo: 'antes-de-restaurar', exportado: new Date().toISOString(), clientes: state.clientes, inscripciones: state.inscripciones },
+        `mapa-comercial-antes-de-restaurar-${new Date().toISOString().slice(0, 10)}.json`
+    );
+
+    try {
+        const d = JSON.parse(copia.contenido);
+        state.clientes = d.clientes || [];
+        state.inscripciones = (d.inscripciones || []).map(normalizarInscripcion);
+    } catch (e) {
+        toast('Esa copia no se pudo leer', 'error');
+        return;
+    }
+
+    state.filtros.clientes = state.clientes.map(c => c.id);
+    if (!guardarDatos()) return;
+    renderClientFilters();
+    populateClientSelect();
+    refrescarPartidos();
+    actualizarContadores();
+    cerrarModalRestaurar();
+    toast('Copia restaurada', 'success');
+}
+
+function mostrarPantallaDatosRotos() {
+    const cont = document.getElementById('rotosLista');
+    const copias = listarRespaldos();
+    cont.innerHTML = '';
+
+    if (!copias.length) {
+        cont.innerHTML = '<div class="empty-state">No hay copias de seguridad disponibles en este navegador.</div>';
+    } else {
+        copias.forEach(c => {
+            const fila = document.createElement('div');
+            fila.className = 'restaurar-item';
+            fila.innerHTML = `
+                <div class="restaurar-info">
+                    <strong>${escapeHtml(c.etiqueta)}</strong>
+                    <span>${c.cantidad} inscripcion${c.cantidad === 1 ? '' : 'es'}</span>
+                </div>
+                <button class="btn-primary">Usar esta</button>
+            `;
+            fila.querySelector('button').addEventListener('click', () => {
+                try {
+                    const d = JSON.parse(c.contenido);
+                    state.datosIlegibles = false;
+                    state.clientes = d.clientes || [];
+                    state.inscripciones = (d.inscripciones || []).map(normalizarInscripcion);
+                    localStorage.setItem(STORAGE_KEY, JSON.stringify({ clientes: state.clientes, inscripciones: state.inscripciones }));
+                    location.reload();
+                } catch (e) {
+                    alert('Esa copia tampoco se pudo leer.');
+                }
+            });
+            cont.appendChild(fila);
+        });
+    }
+
+    document.getElementById('btnDescargarRotos').addEventListener('click', () => {
+        const clave = Object.keys(localStorage).filter(k => k.startsWith(PREFIJO_ROTO)).sort().pop();
+        const texto = clave ? localStorage.getItem(clave) : '';
+        const blob = new Blob([texto], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'datos-dañados.txt';
+        a.click();
+        URL.revokeObjectURL(url);
+    });
+
+    document.getElementById('btnEmpezarDeCero').addEventListener('click', () => {
+        if (!confirm('Vas a empezar con los datos de ejemplo. Los datos dañados quedan guardados igual.\n\n¿Seguro?')) return;
+        localStorage.removeItem(STORAGE_KEY);
+        location.reload();
+    });
+
+    document.getElementById('modalDatosRotos').style.display = 'flex';
+}
+
+function descargarJSON(objeto, nombre) {
+    const blob = new Blob([JSON.stringify(objeto, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = nombre;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+// ============================================================
 // UTILS
 // ============================================================
+
+function nuevoId(prefijo) {
+    return prefijo + '_' + Date.now() + '_' + Math.random().toString(36).substr(2, 5);
+}
 
 function normalizar(s) {
     return (s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').trim();
