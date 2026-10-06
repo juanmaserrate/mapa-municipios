@@ -218,3 +218,6 @@
     .migrar-dato { flex-direction: row; justify-content: space-between; padding: 10px 14px; }
     .migrar-dato strong { font-size: 20px; }
 }
+
+/* Sin etiqueta de rol: todos pueden lo mismo, ponerla seria mentir */
+.perfil-datos { justify-content: center; }

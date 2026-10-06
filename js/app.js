@@ -2055,7 +2055,6 @@ function abrirSelectorPerfil() {
             <span class="perfil-inicial">${escapeHtml(p.nombre.trim().charAt(0).toUpperCase())}</span>
             <span class="perfil-datos">
                 <strong>${escapeHtml(p.nombre)}</strong>
-                <span>${p.rol === 'admin' ? 'Administra' : (p.rol === 'lectura' ? 'Solo mira' : 'Carga datos')}</span>
             </span>
         `;
         btn.addEventListener('click', () => {
