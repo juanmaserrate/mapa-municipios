@@ -134,6 +134,9 @@ async function recargarDesdeServidor() {
     const vh = document.getElementById('vistaHistorial');
     if (typeof historial !== 'undefined' && vh && vh.style.display !== 'none') historial.cargar();
 
+    const vtb = document.getElementById('vistaTablero');
+    if (typeof tablero !== 'undefined' && vtb && vtb.style.display !== 'none') tablero.cargar();
+
     return true;
 }
 
@@ -1754,6 +1757,7 @@ function bindUI() {
     // El Excel lo puede bajar cualquier perfil, también el de solo lectura
     document.getElementById('btnExcel').addEventListener('click', () => tabla.exportarExcel());
     document.getElementById('btnExcelHistorial').addEventListener('click', () => historial.exportarExcel());
+    document.getElementById('btnExcelTablero').addEventListener('click', () => tablero.exportarExcel());
 
     document.getElementById('btnClosePerfil').addEventListener('click', cerrarSelectorPerfil);
     document.getElementById('btnCrearPerfil').addEventListener('click', crearPerfilNuevo);

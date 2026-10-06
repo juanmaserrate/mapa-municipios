@@ -91,6 +91,11 @@ const api = {
         return this.pedir('/historial?limite=' + (limite || 300));
     },
 
+    // Tablero: lo puede ver cualquier perfil
+    resumen() {
+        return this.pedir('/resumen');
+    },
+
     estadoAvisos() {
         return this.pedir('/alertas/estado');
     },
