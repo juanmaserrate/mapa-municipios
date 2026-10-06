@@ -15,7 +15,7 @@ const INSCRIPCIONES_INICIALES = [
     // R 14
     { partido: 'Almirante Brown', clienteId: 'r14', estado: 'inscripto' },
     { partido: 'Quilmes', clienteId: 'r14', estado: 'inscripto' },
-    { partido: 'Moreno', clienteId: 'r14', estado: 'inscripto' },
+    { partido: 'Moreno', clienteId: 'r14', estado: 'inscripto', fechaVto: '2026-09-16', notas: 'Envié por portal para que actualicen fecha registro- En Proceso desde 18.09.26' },
     { partido: 'Lujan', clienteId: 'r14', estado: 'inscripto' },
     { partido: 'Lanus', clienteId: 'r14', estado: 'inscripto' },
     { partido: 'General Pueyrredon', clienteId: 'r14', estado: 'inscripto' },

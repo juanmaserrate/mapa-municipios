@@ -63,7 +63,11 @@ function avisarVencimientos() {
     }, 700);
 }
 
-// Patches que se aplican una vez por usuario (para sumar inscripciones nuevas sin tocar las existentes)
+// Patches que se aplican una vez por usuario.
+// Por defecto solo AGREGAN inscripciones que no existen (no pisan lo cargado).
+// Si el item lleva `actualizar: true`, tambien escribe esos campos sobre la
+// inscripcion existente: sirve para completar datos desde aca sin que cada
+// persona los tenga que cargar a mano en su navegador.
 const PATCHES = [
     {
         id: 'r14-por-iniciar-conurbano-2026-06',
@@ -73,8 +77,25 @@ const PATCHES = [
             { partido: 'Vicente Lopez', clienteId: 'r14', estado: 'por-iniciar' },
             { partido: 'San Miguel', clienteId: 'r14', estado: 'por-iniciar' }
         ]
+    },
+    {
+        id: 'moreno-r14-vto-y-notas-2026-10',
+        items: [
+            {
+                partido: 'Moreno',
+                clienteId: 'r14',
+                estado: 'inscripto',
+                fechaVto: '2026-09-16',
+                sinVto: false,
+                notas: 'Envié por portal para que actualicen fecha registro- En Proceso desde 18.09.26',
+                actualizar: true
+            }
+        ]
     }
 ];
+
+// Campos que un patch puede escribir sobre una inscripcion ya existente
+const CAMPOS_PATCHEABLES = ['estado', 'descripcion', 'notas', 'fechaAlta', 'fechaVto', 'sinVto', 'monto'];
 
 function aplicarPatchesIniciales() {
     const aplicados = JSON.parse(localStorage.getItem('mapa_comercial_patches') || '[]');
@@ -93,16 +114,32 @@ function aplicarPatchesIniciales() {
                     clienteId: item.clienteId,
                     estado: item.estado,
                     descripcion: item.descripcion || '',
-                    notas: '',
+                    notas: item.notas || '',
+                    fechaAlta: item.fechaAlta || '',
+                    fechaVto: item.fechaVto || '',
+                    sinVto: !!item.sinVto,
+                    monto: item.monto !== undefined ? item.monto : null,
                     archivos: [],
                     creado: new Date().toISOString()
                 });
                 cambios = true;
+            } else if (item.actualizar) {
+                CAMPOS_PATCHEABLES.forEach(campo => {
+                    if (item[campo] === undefined) return;
+                    if (existe[campo] === item[campo]) return;
+                    existe[campo] = item[campo];
+                    cambios = true;
+                });
+                if (cambios) existe.actualizado = new Date().toISOString();
             }
         });
         aplicados.push(patch.id);
     });
-    localStorage.setItem('mapa_comercial_patches', JSON.stringify(aplicados));
+    try {
+        localStorage.setItem('mapa_comercial_patches', JSON.stringify(aplicados));
+    } catch (e) {
+        console.error('No se pudo guardar la lista de patches aplicados:', e);
+    }
     if (cambios) guardarDatos();
 }
 
@@ -149,7 +186,11 @@ function cargarDatosIniciales() {
         clienteId: i.clienteId,
         estado: i.estado,
         descripcion: i.descripcion || '',
-        notas: '',
+        notas: i.notas || '',
+        fechaAlta: i.fechaAlta || '',
+        fechaVto: i.fechaVto || '',
+        sinVto: !!i.sinVto,
+        monto: i.monto !== undefined ? i.monto : null,
         archivos: [],
         creado: new Date().toISOString()
     }));
