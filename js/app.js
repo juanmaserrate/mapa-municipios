@@ -20,6 +20,7 @@ let state = {
     selectedPartido: null,
     selectedMunicipioId: null,
     municipiosSinResolver: [],
+    perfiles: [],
     editingInscripcionId: null,
     archivosTemp: [],
     datosIlegibles: false
@@ -34,12 +35,27 @@ let timerDestaque = null;
 // INICIALIZACIÓN
 // ============================================================
 
-window.addEventListener('DOMContentLoaded', () => {
-    cargarDatos();
+const PERFIL_KEY = 'mapa_comercial_perfil';
+let modoServidor = false;
 
-    if (state.datosIlegibles) {
-        mostrarPantallaDatosRotos();
-        return;
+window.addEventListener('DOMContentLoaded', async () => {
+    api.perfil = leerPerfilGuardado();
+
+    const datos = await api.leerEstado();
+    if (datos) {
+        modoServidor = true;
+        state.clientes = datos.clientes || [];
+        state.inscripciones = (datos.inscripciones || []).map(normalizarInscripcion);
+        state.perfiles = datos.perfiles || [];
+        state.filtros.clientes = state.clientes.map(c => c.id);
+        guardarCacheLocal();
+    } else {
+        // Sin servidor: se sigue trabajando con lo último que vio este navegador
+        cargarDatos();
+        if (state.datosIlegibles) {
+            mostrarPantallaDatosRotos();
+            return;
+        }
     }
 
     aplicarPatchesIniciales();
@@ -50,11 +66,119 @@ window.addEventListener('DOMContentLoaded', () => {
     populateClientSelect();
     actualizarMedidorEspacio();
     actualizarAvisoRevisar();
+    actualizarBarraConexion();
     avisarVencimientos();
 
     // En celular el panel arranca cerrado para que se vea el mapa entero
     if (esCelular()) document.querySelector('.app').classList.add('sidebar-collapsed');
+
+    if (modoServidor && !api.perfil) abrirSelectorPerfil();
 });
+
+// ============================================================
+// SERVIDOR: estado, perfil y caché local
+// ============================================================
+
+function leerPerfilGuardado() {
+    try {
+        const txt = localStorage.getItem(PERFIL_KEY);
+        return txt ? JSON.parse(txt) : null;
+    } catch (e) {
+        return null;
+    }
+}
+
+function guardarPerfil(perfil) {
+    api.perfil = perfil;
+    try {
+        localStorage.setItem(PERFIL_KEY, JSON.stringify(perfil));
+    } catch (e) { /* sin espacio: el perfil se vuelve a pedir la próxima */ }
+    actualizarBarraConexion();
+}
+
+// Copia local de lo que hay en el servidor. Solo para poder mirar si el
+// servidor no responde: nunca es la fuente de verdad en modo servidor.
+function guardarCacheLocal() {
+    try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+            clientes: state.clientes,
+            inscripciones: state.inscripciones
+        }));
+    } catch (e) { /* si no entra, no pasa nada: el servidor tiene todo */ }
+}
+
+async function recargarDesdeServidor() {
+    const datos = await api.leerEstado();
+    if (!datos) {
+        actualizarBarraConexion();
+        return false;
+    }
+    state.clientes = datos.clientes || [];
+    state.inscripciones = (datos.inscripciones || []).map(normalizarInscripcion);
+    state.perfiles = datos.perfiles || [];
+    state.filtros.clientes = state.filtros.clientes.filter(id => state.clientes.some(c => c.id === id));
+    state.clientes.forEach(c => { if (!state.filtros.clientes.includes(c.id)) state.filtros.clientes.push(c.id); });
+    invalidarIndice();
+    guardarCacheLocal();
+    renderClientFilters();
+    populateClientSelect();
+    refrescarPartidos();
+    actualizarContadores();
+    actualizarAvisoRevisar();
+    actualizarBarraConexion();
+    if (state.selectedMunicipioId) renderInscripcionesList();
+    return true;
+}
+
+function actualizarBarraConexion() {
+    const barra = document.getElementById('barraConexion');
+    if (!barra) return;
+
+    if (!modoServidor) {
+        barra.className = 'barra-conexion sin-servidor';
+        barra.innerHTML = `
+            <span class="punto"></span>
+            <span>Trabajando en este navegador · tus cambios no los ve nadie más</span>
+        `;
+        barra.style.display = '';
+        return;
+    }
+
+    if (!api.conectado) {
+        barra.className = 'barra-conexion caido';
+        barra.innerHTML = `
+            <span class="punto"></span>
+            <span>Sin conexión con el servidor · estás viendo la última copia, no se puede editar</span>
+        `;
+        barra.style.display = '';
+        return;
+    }
+
+    const nombre = api.perfil ? api.perfil.nombre : 'Sin identificar';
+    barra.className = 'barra-conexion ok';
+    barra.innerHTML = `
+        <span class="punto"></span>
+        <span>Datos compartidos · sos <strong>${escapeHtml(nombre)}</strong></span>
+        <button class="barra-cambiar" id="btnCambiarPerfil">cambiar</button>
+    `;
+    barra.style.display = '';
+    const btn = document.getElementById('btnCambiarPerfil');
+    if (btn) btn.addEventListener('click', abrirSelectorPerfil);
+}
+
+// Bloquea la edición cuando no se puede escribir en el servidor
+function puedeEditar() {
+    if (!modoServidor) return true;  // modo navegador: se edita local como siempre
+    if (!api.conectado) {
+        toast('Sin conexión con el servidor: no se puede guardar ahora', 'error');
+        return false;
+    }
+    if (!api.perfil) {
+        abrirSelectorPerfil();
+        return false;
+    }
+    return true;
+}
 
 function esCelular() {
     return window.innerWidth <= 768;
@@ -963,8 +1087,9 @@ function cerrarModalInscripcion() {
     state.archivosTemp = [];
 }
 
-function guardarInscripcion(e) {
+async function guardarInscripcion(e) {
     e.preventDefault();
+    if (!puedeEditar()) return;
     const clienteId = document.getElementById('fieldCliente').value;
     const estadoEl = document.querySelector('input[name="estado"]:checked');
     if (!clienteId) { toast('Seleccioná una sociedad', 'error'); return; }
@@ -975,6 +1100,29 @@ function guardarInscripcion(e) {
     const fechaAlta = document.getElementById('fieldFechaAlta').value;
     const fechaVto = sinVto ? '' : document.getElementById('fieldFechaVto').value;
     const monto = parseMonto(document.getElementById('fieldMonto').value);
+
+    if (modoServidor) {
+        const previa = state.editingInscripcionId
+            ? state.inscripciones.find(x => x.id === state.editingInscripcionId)
+            : null;
+        const cuerpo = {
+            id: previa ? previa.id : undefined,
+            municipioId: previa ? previa.municipioId : state.selectedMunicipioId,
+            clienteId,
+            estado: estadoEl.value,
+            descripcion, notas, fechaAlta, fechaVto, sinVto, monto
+        };
+        try {
+            await api.guardarInscripcion(cuerpo);
+        } catch (err) {
+            toast('No se pudo guardar: ' + err.message, 'error');
+            return;
+        }
+        await recargarDesdeServidor();
+        cerrarModalInscripcion();
+        toast('Guardado', 'success');
+        return;
+    }
 
     if (state.editingInscripcionId) {
         const i = state.inscripciones.find(x => x.id === state.editingInscripcionId);
@@ -1024,9 +1172,24 @@ function guardarInscripcion(e) {
     toast('Guardado', 'success');
 }
 
-function eliminarInscripcionActual() {
+async function eliminarInscripcionActual() {
     if (!state.editingInscripcionId) return;
+    if (!puedeEditar()) return;
     if (!confirm('¿Eliminar esta inscripción?')) return;
+
+    if (modoServidor) {
+        try {
+            await api.borrarInscripcion(state.editingInscripcionId);
+        } catch (err) {
+            toast('No se pudo eliminar: ' + err.message, 'error');
+            return;
+        }
+        await recargarDesdeServidor();
+        cerrarModalInscripcion();
+        toast('Inscripción eliminada', 'success');
+        return;
+    }
+
     state.inscripciones = state.inscripciones.filter(i => i.id !== state.editingInscripcionId);
     invalidarIndice();
     if (!guardarDatos()) {
@@ -1537,6 +1700,27 @@ function bindUI() {
         else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
     });
 
+    document.getElementById('btnClosePerfil').addEventListener('click', cerrarSelectorPerfil);
+    document.getElementById('btnCrearPerfil').addEventListener('click', crearPerfilNuevo);
+    document.getElementById('perfilNuevoNombre').addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') { e.preventDefault(); crearPerfilNuevo(); }
+    });
+
+    document.getElementById('btnMigrar').addEventListener('click', abrirModalMigrar);
+    document.getElementById('btnCloseMigrar').addEventListener('click', cerrarModalMigrar);
+    document.getElementById('btnSimularMigracion').addEventListener('click', simularMigracion);
+    document.getElementById('modalMigrar').addEventListener('click', (e) => {
+        if (e.target.id === 'modalMigrar') cerrarModalMigrar();
+    });
+
+    // El botón de migrar solo tiene sentido si hay servidor y datos locales
+    if (modoServidor) {
+        const locales = datosDeEsteNavegador();
+        if (locales && locales.inscripciones.length) {
+            document.getElementById('btnMigrar').style.display = '';
+        }
+    }
+
     document.getElementById('btnRevisarMunicipios').addEventListener('click', abrirModalRevisar);
     document.getElementById('btnCloseRevisar').addEventListener('click', cerrarModalRevisar);
     document.getElementById('modalRevisar').addEventListener('click', (e) => {
@@ -1648,12 +1832,29 @@ function cerrarModalCliente() {
     document.getElementById('modalClient').style.display = 'none';
 }
 
-function crearCliente(e) {
+async function crearCliente(e) {
     e.preventDefault();
+    if (!puedeEditar()) return;
     const nombre = document.getElementById('clientName').value.trim();
     const color = document.querySelector('input[name="color"]:checked').value;
     if (!nombre) return;
-    const id = nombre.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '_' + Date.now().toString(36);
+    const id = nombre.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '_' + Date.now().toString(36);
+
+    if (modoServidor) {
+        try {
+            await api.crearSociedad({ id, nombre, color });
+        } catch (err) {
+            toast('No se pudo crear la sociedad: ' + err.message, 'error');
+            return;
+        }
+        state.filtros.clientes.push(id);
+        await recargarDesdeServidor();
+        cerrarModalCliente();
+        toast(`Sociedad "${nombre}" creada`, 'success');
+        return;
+    }
+
     state.clientes.push({ id, nombre, color });
     state.filtros.clientes.push(id);
     if (!guardarDatos()) {
@@ -1672,6 +1873,11 @@ function crearCliente(e) {
 // ============================================================
 
 function exportarDatos() {
+    if (modoServidor && api.conectado) {
+        window.location.href = '/api/respaldo.json';
+        toast('Descargando el respaldo del servidor', 'success');
+        return;
+    }
     const data = {
         version: '2.0',
         exportado: new Date().toISOString(),
@@ -1767,6 +1973,182 @@ function importarDatos(e) {
 }
 
 // ============================================================
+// PERFIL: quién está cargando
+// ============================================================
+
+function abrirSelectorPerfil() {
+    const cont = document.getElementById('perfilLista');
+    cont.innerHTML = '';
+
+    (state.perfiles || []).forEach(p => {
+        const btn = document.createElement('button');
+        btn.className = 'perfil-item' + (api.perfil && api.perfil.id === p.id ? ' actual' : '');
+        btn.innerHTML = `
+            <span class="perfil-inicial">${escapeHtml(p.nombre.trim().charAt(0).toUpperCase())}</span>
+            <span class="perfil-datos">
+                <strong>${escapeHtml(p.nombre)}</strong>
+                <span>${p.rol === 'admin' ? 'Administra' : (p.rol === 'lectura' ? 'Solo mira' : 'Carga datos')}</span>
+            </span>
+        `;
+        btn.addEventListener('click', () => {
+            guardarPerfil({ id: p.id, nombre: p.nombre, rol: p.rol });
+            cerrarSelectorPerfil();
+            toast(`Entraste como ${p.nombre}`, 'success');
+        });
+        cont.appendChild(btn);
+    });
+
+    if (!state.perfiles || !state.perfiles.length) {
+        cont.innerHTML = '<div class="empty-state">Todavía no hay perfiles. Escribí tu nombre abajo.</div>';
+    }
+
+    // El botón de cerrar solo aparece si ya hay un perfil elegido
+    document.getElementById('btnClosePerfil').style.display = api.perfil ? '' : 'none';
+    document.getElementById('perfilNuevoNombre').value = '';
+    document.getElementById('modalPerfil').style.display = 'flex';
+}
+
+function cerrarSelectorPerfil() {
+    document.getElementById('modalPerfil').style.display = 'none';
+    actualizarBarraConexion();
+}
+
+async function crearPerfilNuevo() {
+    const nombre = document.getElementById('perfilNuevoNombre').value.trim();
+    if (!nombre) { toast('Escribí un nombre', 'error'); return; }
+    try {
+        const p = await api.crearPerfil(nombre, 'carga');
+        guardarPerfil(p);
+        await recargarDesdeServidor();
+        cerrarSelectorPerfil();
+        toast(`Entraste como ${p.nombre}`, 'success');
+    } catch (e) {
+        toast('No se pudo crear el perfil: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
+// MIGRACIÓN: subir lo que tiene este navegador
+// ============================================================
+
+function datosDeEsteNavegador() {
+    try {
+        const txt = localStorage.getItem(STORAGE_KEY);
+        if (!txt) return null;
+        const d = JSON.parse(txt);
+        return {
+            clientes: d.clientes || [],
+            inscripciones: (d.inscripciones || []).map(normalizarInscripcion)
+        };
+    } catch (e) {
+        return null;
+    }
+}
+
+function abrirModalMigrar() {
+    document.getElementById('migrarPaso1').style.display = '';
+    document.getElementById('migrarInforme').style.display = 'none';
+    document.getElementById('migrarInforme').innerHTML = '';
+    document.getElementById('modalMigrar').style.display = 'flex';
+}
+
+function cerrarModalMigrar() {
+    document.getElementById('modalMigrar').style.display = 'none';
+}
+
+async function simularMigracion() {
+    const datos = datosDeEsteNavegador();
+    if (!datos || !datos.inscripciones.length) {
+        toast('Este navegador no tiene datos para subir', 'warning');
+        return;
+    }
+    const boton = document.getElementById('btnSimularMigracion');
+    boton.disabled = true;
+    boton.textContent = 'Comparando...';
+    try {
+        const informe = await api.migrarDesdeNavegador(datos, 'simular');
+        mostrarInformeMigracion(informe, datos);
+    } catch (e) {
+        toast('No se pudo comparar: ' + e.message, 'error');
+    } finally {
+        boton.disabled = false;
+        boton.textContent = 'Comparar con el servidor';
+    }
+}
+
+function mostrarInformeMigracion(informe, datos) {
+    document.getElementById('migrarPaso1').style.display = 'none';
+    const cont = document.getElementById('migrarInforme');
+    cont.style.display = '';
+
+    let html = `
+        <div class="migrar-resumen">
+            <div class="migrar-dato nuevas"><strong>${informe.nuevas}</strong><span>nuevas para el servidor</span></div>
+            <div class="migrar-dato iguales"><strong>${informe.iguales}</strong><span>ya estaban igual</span></div>
+            <div class="migrar-dato distintas"><strong>${informe.distintas}</strong><span>están distintas</span></div>
+        </div>
+    `;
+
+    if (informe.sinMunicipio) {
+        html += `<p class="aviso-texto">⚠ ${informe.sinMunicipio} inscripciones de este navegador no tienen municipio
+                 identificado y no se van a subir. Resolvelas primero en "Inscripciones sin municipio".</p>`;
+    }
+
+    if (informe.distintas) {
+        html += `<p class="aviso-texto"><strong>Las ${informe.distintas} que están distintas NO se tocan.</strong>
+                 Estas son las diferencias:</p><div class="migrar-conflictos">`;
+        (informe.detalleDistintas || []).forEach(d => {
+            const muni = nombreMunicipio(d.entrante.municipioId) || d.entrante.partido;
+            const soc = (state.clientes.find(c => c.id === d.entrante.clienteId) || {}).nombre || d.entrante.clienteId;
+            const filas = d.campos.map(c => `
+                <div class="migrar-campo">
+                    <span class="migrar-campo-nombre">${escapeHtml(etiquetaCampo(c))}</span>
+                    <span class="migrar-aca">acá: ${escapeHtml(String(d.entrante[c] || '—'))}</span>
+                    <span class="migrar-alla">servidor: ${escapeHtml(String(d.actual[c] || '—'))}</span>
+                </div>
+            `).join('');
+            html += `<div class="migrar-conflicto"><strong>${escapeHtml(muni)} · ${escapeHtml(soc)}</strong>${filas}</div>`;
+        });
+        html += '</div>';
+    }
+
+    html += `
+        <div class="rotos-acciones">
+            <button class="btn-primary" id="btnAplicarMigracion">Subir las ${informe.nuevas} nuevas</button>
+            ${informe.distintas ? '<button class="btn-secondary" id="btnAplicarTodo">Subir todo y pisar las distintas</button>' : ''}
+        </div>
+    `;
+
+    cont.innerHTML = html;
+
+    document.getElementById('btnAplicarMigracion').addEventListener('click', () => aplicarMigracion(datos, false));
+    const btnTodo = document.getElementById('btnAplicarTodo');
+    if (btnTodo) btnTodo.addEventListener('click', () => {
+        if (!confirm('Vas a pisar en el servidor las versiones distintas con las de este navegador.\n\n¿Seguro?')) return;
+        aplicarMigracion(datos, true);
+    });
+}
+
+function etiquetaCampo(c) {
+    return ({
+        estado: 'Estado', descripcion: 'Razón', notas: 'Notas',
+        fechaAlta: 'Fecha de alta', fechaVto: 'Vence el',
+        sinVto: 'Sin vencimiento', monto: 'Monto'
+    })[c] || c;
+}
+
+async function aplicarMigracion(datos, forzar) {
+    try {
+        const r = await api.migrarDesdeNavegador(datos, 'aplicar', forzar);
+        await recargarDesdeServidor();
+        cerrarModalMigrar();
+        toast(`Se subieron ${r.aplicadas} inscripciones al servidor`, 'success');
+    } catch (e) {
+        toast('No se pudo subir: ' + e.message, 'error');
+    }
+}
+
+// ============================================================
 // MUNICIPIOS A REVISAR
 // Inscripciones cuyo nombre de municipio no coincide con ninguno real.
 // No se adivinan: las resuelve una persona.
@@ -1817,12 +2199,25 @@ function abrirModalRevisar() {
             boton.disabled = !select.value;
 
             select.addEventListener('change', () => { boton.disabled = !select.value; });
-            boton.addEventListener('click', () => {
+            boton.addEventListener('click', async () => {
                 const m = MUNICIPIOS_POR_ID[Number(select.value)];
                 if (!m) return;
                 insc.municipioId = m.id;
                 insc.partido = m.nombre;
                 insc.actualizado = new Date().toISOString();
+                if (modoServidor) {
+                    try {
+                        await api.guardarInscripcion(insc);
+                    } catch (err) {
+                        toast('No se pudo asignar: ' + err.message, 'error');
+                        return;
+                    }
+                    await recargarDesdeServidor();
+                    actualizarAvisoRevisar();
+                    abrirModalRevisar();
+                    toast(`Asignado a ${m.nombre}`, 'success');
+                    return;
+                }
                 if (!guardarDatos()) return;
                 refrescarPartidos();
                 actualizarContadores();

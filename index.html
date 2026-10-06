@@ -11,7 +11,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <link rel="stylesheet" href="css/style.css?v=16">
+    <link rel="stylesheet" href="css/style.css?v=17">
 </head>
 <body>
     <div class="app">
@@ -43,6 +43,8 @@
                     </svg>
                 </button>
             </div>
+
+            <div class="barra-conexion" id="barraConexion" style="display:none"></div>
 
             <div class="sidebar-section aviso-revisar" id="avisoRevisar" style="display:none">
                 <button class="aviso-revisar-btn" id="btnRevisarMunicipios">
@@ -177,6 +179,7 @@
                     </button>
                     <input type="file" id="importFile" accept=".json" style="display:none">
                 </div>
+                <button class="btn-link" id="btnMigrar" style="display:none">Subir los datos de este navegador al servidor</button>
             </div>
         </aside>
 
@@ -377,6 +380,56 @@
         </div>
     </div>
 
+    <!-- Modal: quien sos -->
+    <div class="modal modal-bloqueo" id="modalPerfil" style="display:none">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>¿Quién sos?</h2>
+                <button class="btn-close" id="btnClosePerfil" style="display:none">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="restaurar-body">
+                <p class="aviso-texto">
+                    Elegí tu perfil para que quede registrado quién carga cada dato.
+                    No hace falta contraseña. Se recuerda en este navegador.
+                </p>
+                <div class="perfil-lista" id="perfilLista"></div>
+                <div class="perfil-nuevo">
+                    <input type="text" id="perfilNuevoNombre" placeholder="O escribí tu nombre...">
+                    <button class="btn-secondary" id="btnCrearPerfil">Agregar</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal: migrar al servidor -->
+    <div class="modal" id="modalMigrar" style="display:none">
+        <div class="modal-content modal-wide">
+            <div class="modal-header">
+                <h2>Subir los datos de este navegador</h2>
+                <button class="btn-close" id="btnCloseMigrar">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M18 6 6 18M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <div class="restaurar-body">
+                <div id="migrarPaso1">
+                    <p class="aviso-texto">
+                        Esto compara lo que tenés guardado en <strong>este navegador</strong> con lo que ya
+                        está en el servidor y te muestra el resultado <strong>antes</strong> de tocar nada.
+                        El archivo original queda guardado siempre, por las dudas.
+                    </p>
+                    <button class="btn-primary" id="btnSimularMigracion">Comparar con el servidor</button>
+                </div>
+                <div id="migrarInforme" style="display:none"></div>
+            </div>
+        </div>
+    </div>
+
     <!-- Modal: municipios a revisar -->
     <div class="modal" id="modalRevisar" style="display:none">
         <div class="modal-content modal-wide">
@@ -441,8 +494,9 @@
     <div class="toast-container" id="toastContainer"></div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="js/municipios.js?v=16"></script>
-    <script src="js/data.js?v=16"></script>
-    <script src="js/app.js?v=16"></script>
+    <script src="js/api.js?v=17"></script>
+    <script src="js/municipios.js?v=17"></script>
+    <script src="js/data.js?v=17"></script>
+    <script src="js/app.js?v=17"></script>
 </body>
 </html>
