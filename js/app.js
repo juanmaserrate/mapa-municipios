@@ -827,8 +827,8 @@ function estiloPartido(feature, hover) {
         } else if (estados.includes('no-inscripto')) {
             // "Próximos" son municipios todavia sin trabajar, no un problema:
             // el rojo queda reservado para lo que si urge (las altas vencidas)
-            fillColor = '#94a3b8';
-            fillOpacity = hover ? 0.5 : 0.3;
+            fillColor = '#3b82f6';
+            fillOpacity = hover ? 0.55 : 0.34;
         }
     }
 
@@ -937,7 +937,7 @@ function renderLeyendaColores() {
         : [
             ['#10b981', 'Inscripto'],
             ['#f59e0b', 'En proceso'],
-            ['#94a3b8', 'Próximos']
+            ['#3b82f6', 'Próximos']
           ];
 
     el.innerHTML = items.map(([c, t]) =>
