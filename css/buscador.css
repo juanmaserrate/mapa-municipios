@@ -150,3 +150,125 @@
     .modal form { padding: 14px 18px 0; }
     .modal form .form-actions { padding-bottom: 14px; }
 }
+
+/* ============================================================
+   MODO DEL MAPA Y MARCADORES DE LICITACIONES
+   ============================================================ */
+
+.modo-mapa {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 900;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 5px 4px 11px;
+    border-radius: 10px;
+    background: var(--bg-darker);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-md);
+}
+
+.modo-titulo {
+    font-size: 10.5px;
+    font-weight: 600;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    margin-right: 3px;
+}
+
+.modo-btn {
+    padding: 5px 12px;
+    border: none;
+    border-radius: 7px;
+    background: none;
+    color: var(--text-muted);
+    font-size: 12px;
+    font-weight: 500;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.15s;
+}
+
+.modo-btn:hover { background: var(--bg-card-hover); color: var(--text); }
+.modo-btn.activa { background: var(--primary); color: #fff; }
+
+/* Referencia de colores abajo a la izquierda */
+.leyenda-colores {
+    position: absolute;
+    bottom: 22px;
+    left: 14px;
+    z-index: 900;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.93);
+    border: 1px solid var(--border);
+    box-shadow: var(--shadow-sm);
+    backdrop-filter: blur(3px);
+}
+
+.leyenda-color-item {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 11px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.leyenda-cuadro {
+    width: 11px;
+    height: 11px;
+    border-radius: 3px;
+    flex-shrink: 0;
+}
+
+/* Marcador con la cantidad de licitaciones abiertas */
+.marcador-lic-wrap { background: none; border: none; }
+
+.marcador-lic {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 700;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.35);
+    cursor: pointer;
+}
+
+.marcador-lic.sin-empresa {
+    background: #ea580c;
+}
+
+.marcador-tooltip {
+    font-size: 11.5px;
+    max-width: 260px;
+}
+
+@media (max-width: 768px) {
+    .modo-mapa {
+        top: auto;
+        bottom: 22px;
+        right: 10px;
+        padding: 3px 4px;
+    }
+    .modo-titulo { display: none; }
+    .leyenda-colores {
+        bottom: 68px;
+        left: 10px;
+        gap: 7px;
+        padding: 6px 9px;
+    }
+    .leyenda-color-item { font-size: 10px; }
+}

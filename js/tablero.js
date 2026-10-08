@@ -53,6 +53,7 @@ const tablero = {
 
         cont.innerHTML = [
             this.bloquePlata(d),
+            this.bloqueRubros(d),
             this.bloqueSociedades(d),
             this.bloqueProceso(d),
             this.bloqueOportunidades(d),
@@ -95,6 +96,35 @@ const tablero = {
                 <strong class="tb-tarjeta-valor">${valor || '$ 0'}</strong>
                 <span class="tb-tarjeta-pie">${escapeHtml(pie)}</span>
             </div>`;
+    },
+
+    // ---------- Que se licita de cada rubro ----------
+    bloqueRubros(d) {
+        const filas = (d.porRubro || []).filter(r => r.cantidad);
+        if (!filas.length) return '';
+        return `
+            <section class="tb-seccion">
+                <h3 class="tb-titulo">Qué se licita de cada rubro</h3>
+                <div class="tabla-scroll">
+                <table class="tabla-datos tb-tabla">
+                    <thead><tr>
+                        <th>Rubro</th><th>Licitaciones</th><th>En curso</th><th>Ganadas</th>
+                        <th>Ofertado</th><th>Ganado</th>
+                    </tr></thead>
+                    <tbody>
+                        ${filas.map(r => `
+                            <tr>
+                                <td class="col-municipio">${escapeHtml(r.rubro)}</td>
+                                <td class="col-dias">${r.cantidad}</td>
+                                <td class="col-dias">${r.vivas}</td>
+                                <td class="col-dias">${r.ganadas}</td>
+                                <td class="col-monto">${r.ofertado ? formatMonto(r.ofertado) : '—'}</td>
+                                <td class="col-monto">${r.ganado ? formatMonto(r.ganado) : '—'}</td>
+                            </tr>`).join('')}
+                    </tbody>
+                </table>
+                </div>
+            </section>`;
     },
 
     // ---------- Por sociedad ----------
@@ -181,7 +211,8 @@ const tablero = {
 
     // ---------- Oportunidades y huecos ----------
     bloqueOportunidades(d) {
-        if (!d.dormidos.length && !d.sinAltaVigente.length) return '';
+        const sinResp = d.sinResponsable || [];
+        if (!d.dormidos.length && !d.sinAltaVigente.length && !sinResp.length) return '';
         return `
             <section class="tb-seccion">
                 <h3 class="tb-titulo">Huecos y oportunidades</h3>
@@ -192,6 +223,13 @@ const tablero = {
                             <div class="tb-lista-chica">
                                 ${d.dormidos.slice(0, 12).map(x => `<div class="tb-item"><strong>${escapeHtml(x.municipio)}</strong><span>${escapeHtml(x.sociedad)}</span></div>`).join('')}
                                 ${d.dormidos.length > 12 ? `<div class="tb-mas">y ${d.dormidos.length - 12} más</div>` : ''}
+                            </div>
+                        </div>` : ''}
+                    ${sinResp.length ? `
+                        <div>
+                            <div class="tb-subtitulo alerta">${sinResp.length} licitación${sinResp.length > 1 ? 'es' : ''} sin empresa responsable definida</div>
+                            <div class="tb-lista-chica">
+                                ${sinResp.slice(0, 12).map(x => `<div class="tb-item alerta"><strong>${escapeHtml(x.municipio)}</strong><span>${escapeHtml(x.objeto)}${x.rubro ? ' · ' + escapeHtml(x.rubro) : ''}${x.fechaApertura ? ' · abre ' + fechaLegible(x.fechaApertura) : ''}</span></div>`).join('')}
                             </div>
                         </div>` : ''}
                     ${d.sinAltaVigente.length ? `
@@ -258,6 +296,12 @@ const tablero = {
                     cob ? `${cob.inscripta} de ${cob.total}` : ''].join(';'));
         });
         L.push('');
+
+        if ((d.porRubro || []).length) {
+            L.push('POR RUBRO;Licitaciones;En curso;Ganadas;Ofertado;Ganado');
+            d.porRubro.forEach(r => L.push([campo(r.rubro), r.cantidad, r.vivas, r.ganadas, num(r.ofertado), num(r.ganado)].join(';')));
+            L.push('');
+        }
 
         L.push('ESTADO DEL PROCESO;Cantidad;Monto');
         d.embudo.forEach(e => L.push([campo(textoEstadoLic(e.estado)), e.cantidad, num(e.monto)].join(';')));

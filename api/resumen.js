@@ -17,7 +17,8 @@ router.get('/resumen', async (req, res) => {
     try {
         const [
             plata, porSociedad, embudo, exito, tiempos, trabadas,
-            cobertura, dormidos, sinAlta, vencenConPlata, competidores, comprometido
+            cobertura, dormidos, sinAlta, vencenConPlata, competidores,
+            porRubro, comprometido, sinResponsable
         ] = await Promise.all([
 
             // --- Plata global ---
@@ -146,12 +147,37 @@ router.get('/resumen', async (req, res) => {
                  LIMIT 15
             `),
 
+            // --- Que se licita de cada rubro ---
+            consultar(`
+                SELECT COALESCE(NULLIF(rubro,''), 'Sin rubro') AS rubro,
+                       COUNT(*)::int AS cantidad,
+                       COUNT(*) FILTER (WHERE estado_proceso IN ${VIVOS})::int AS vivas,
+                       COUNT(*) FILTER (WHERE estado_proceso = 'ganada')::int AS ganadas,
+                       COALESCE(SUM(monto_ofertado)   FILTER (WHERE estado_proceso IN ${VIVOS}), 0) AS ofertado,
+                       COALESCE(SUM(monto_adjudicado) FILTER (WHERE estado_proceso = 'ganada'), 0)  AS ganado
+                  FROM licitaciones
+                 GROUP BY 1
+                 ORDER BY ofertado DESC, ganado DESC
+            `),
+
             // --- Plata comprometida por mes: adjudicado dividido el plazo ---
             consultar(`
                 SELECT COALESCE(ROUND(SUM(monto_adjudicado / NULLIF(plazo_meses, 0))), 0) AS por_mes,
                        COUNT(*) FILTER (WHERE plazo_meses IS NULL OR plazo_meses = 0)::int AS sin_plazo
                   FROM licitaciones
                  WHERE estado_proceso = 'ganada' AND monto_adjudicado IS NOT NULL
+            `),
+
+            // --- Oportunidades todavia sin empresa responsable ---
+            consultar(`
+                SELECT l.id, l.objeto, l.rubro, l.fecha_apertura, l.monto_ofertado,
+                       m.nombre AS municipio
+                  FROM licitaciones l
+                  JOIN municipios m ON m.id = l.municipio_id
+                 WHERE l.estado_proceso IN ${VIVOS}
+                   AND NOT EXISTS (SELECT 1 FROM licitacion_sociedades ls WHERE ls.licitacion_id = l.id)
+                 ORDER BY l.fecha_apertura NULLS LAST
+                 LIMIT 50
             `)
         ]);
 
@@ -203,6 +229,15 @@ router.get('/resumen', async (req, res) => {
             competidores: competidores.map(c => ({
                 nombre: c.nombre, veces: c.veces, gano: c.gano,
                 promedio: c.promedio === null ? null : Number(c.promedio)
+            })),
+            porRubro: porRubro.map(r => ({
+                rubro: r.rubro, cantidad: r.cantidad, vivas: r.vivas, ganadas: r.ganadas,
+                ofertado: Number(r.ofertado), ganado: Number(r.ganado)
+            })),
+            sinResponsable: sinResponsable.map(x => ({
+                municipio: x.municipio, objeto: x.objeto, rubro: x.rubro,
+                fechaApertura: x.fecha_apertura ? x.fecha_apertura.toISOString().slice(0, 10) : '',
+                monto: x.monto_ofertado === null ? null : Number(x.monto_ofertado)
             }))
         });
     } catch (e) {

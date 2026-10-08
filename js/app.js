@@ -21,6 +21,7 @@ let state = {
     selectedMunicipioId: null,
     municipiosSinResolver: [],
     perfiles: [],
+    modoMapa: 'altas',   // altas | licitaciones
     editingInscripcionId: null,
     archivosTemp: [],
     datosIlegibles: false
@@ -69,6 +70,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     actualizarAvisoRevisar();
     actualizarAvisoClasificar();
     actualizarBarraConexion();
+    renderLeyendaColores();
     avisarVencimientos();
 
     // En celular el panel arranca cerrado para que se vea el mapa entero
@@ -801,24 +803,36 @@ function estiloPartido(feature, hover) {
         };
     }
 
-    const inscripciones = inscripcionesDelPartido(municipioId);
-    const estados = inscripciones.map(i => i.estado);
-
-    // Prioridad: inscripto > por-iniciar > no-inscripto > vacío
     let fillColor = '#e2e8f0';
     let fillOpacity = hover ? 0.55 : 0.18;
-    if (estados.includes('inscripto')) {
-        fillColor = '#10b981';
-        fillOpacity = hover ? 0.6 : 0.42;
-    } else if (estados.includes('por-iniciar')) {
-        fillColor = '#f59e0b';
-        fillOpacity = hover ? 0.6 : 0.42;
-    } else if (estados.includes('no-inscripto')) {
-        fillColor = '#ef4444';
-        fillOpacity = hover ? 0.55 : 0.35;
+
+    if (state.modoMapa === 'licitaciones') {
+        // El mapa cambia de significado: muestra en que anda cada municipio
+        const color = colorPorLicitaciones(municipioId);
+        if (color) {
+            fillColor = color;
+            fillOpacity = hover ? 0.6 : 0.42;
+        }
+    } else {
+        const inscripciones = inscripcionesDelPartido(municipioId);
+        const estados = inscripciones.map(i => i.estado);
+
+        // Prioridad: inscripto > en proceso > próximos > vacío
+        if (estados.includes('inscripto')) {
+            fillColor = '#10b981';
+            fillOpacity = hover ? 0.6 : 0.42;
+        } else if (estados.includes('por-iniciar')) {
+            fillColor = '#f59e0b';
+            fillOpacity = hover ? 0.6 : 0.42;
+        } else if (estados.includes('no-inscripto')) {
+            // "Próximos" son municipios todavia sin trabajar, no un problema:
+            // el rojo queda reservado para lo que si urge (las altas vencidas)
+            fillColor = '#94a3b8';
+            fillOpacity = hover ? 0.5 : 0.3;
+        }
     }
 
-    const alerta = partidoTieneAlerta(municipioId);
+    const alerta = state.modoMapa === 'altas' ? partidoTieneAlerta(municipioId) : null;
     if (alerta) {
         const colorAlerta = alerta === 'vencido' ? '#dc2626' : (alerta === 'critico' ? '#ea580c' : '#ca8a04');
         return {
@@ -841,6 +855,96 @@ function estiloPartido(feature, hover) {
     };
 }
 
+// Que color le toca a un municipio segun sus licitaciones.
+// Gana el estado mas "avanzado": ganada > presentada/evaluacion > oportunidad.
+function colorPorLicitaciones(municipioId) {
+    if (typeof licitaciones === 'undefined') return null;
+    const lics = licitaciones.lista.filter(l => l.municipioId === municipioId);
+    if (!lics.length) return null;
+
+    const estados = lics.map(l => l.estadoProceso);
+    if (estados.includes('ganada')) return '#10b981';
+    if (estados.includes('presentada') || estados.includes('en-evaluacion')) return '#ea580c';
+    if (estados.includes('oportunidad') || estados.includes('en-preparacion')) return '#6366f1';
+    if (estados.includes('perdida')) return '#dc2626';
+    return '#cbd5e1';
+}
+
+// Marcadores con la cantidad de licitaciones abiertas, encima del municipio.
+// Se ven en los dos modos: son la respuesta a "donde hay oportunidades".
+let capaMarcadores = null;
+
+function actualizarMarcadoresLicitaciones() {
+    if (!map) return;
+    if (capaMarcadores) { map.removeLayer(capaMarcadores); capaMarcadores = null; }
+    if (typeof licitaciones === 'undefined' || !licitaciones.lista.length || !partidosLayer) return;
+
+    const ABIERTAS = ['oportunidad', 'en-preparacion', 'presentada', 'en-evaluacion'];
+    const porMunicipio = {};
+    licitaciones.lista.forEach(l => {
+        if (!ABIERTAS.includes(l.estadoProceso)) return;
+        (porMunicipio[l.municipioId] = porMunicipio[l.municipioId] || []).push(l);
+    });
+
+    const marcadores = [];
+    partidosLayer.eachLayer(layer => {
+        const id = layer.feature.properties.id;
+        const lics = porMunicipio[id];
+        if (!lics) return;
+
+        const sinEmpresa = lics.some(l => !l.sociedades.length);
+        const centro = layer.getBounds().getCenter();
+        const icono = L.divIcon({
+            className: 'marcador-lic-wrap',
+            html: `<span class="marcador-lic ${sinEmpresa ? 'sin-empresa' : ''}">${lics.length}</span>`,
+            iconSize: [24, 24],
+            iconAnchor: [12, 12]
+        });
+        const m = L.marker(centro, { icon: icono, interactive: true });
+        m.bindTooltip(
+            lics.map(l => `${escapeHtml(l.objeto)}${l.rubro ? ' · ' + escapeHtml(l.rubro) : ''}`).join('<br>'),
+            { direction: 'top', className: 'marcador-tooltip' }
+        );
+        m.on('click', () => abrirPanelPartido(id));
+        marcadores.push(m);
+    });
+
+    if (marcadores.length) {
+        capaMarcadores = L.layerGroup(marcadores).addTo(map);
+    }
+}
+
+function cambiarModoMapa(modo) {
+    state.modoMapa = modo;
+    document.querySelectorAll('.modo-btn').forEach(b => {
+        b.classList.toggle('activa', b.dataset.modo === modo);
+    });
+    refrescarPartidos();
+    renderLeyendaColores();
+}
+
+function renderLeyendaColores() {
+    const el = document.getElementById('leyendaColores');
+    if (!el) return;
+
+    const items = state.modoMapa === 'licitaciones'
+        ? [
+            ['#6366f1', 'Oportunidad'],
+            ['#ea580c', 'Presentada'],
+            ['#10b981', 'Ganada'],
+            ['#dc2626', 'Perdida']
+          ]
+        : [
+            ['#10b981', 'Inscripto'],
+            ['#f59e0b', 'En proceso'],
+            ['#94a3b8', 'Próximos']
+          ];
+
+    el.innerHTML = items.map(([c, t]) =>
+        `<span class="leyenda-color-item"><span class="leyenda-cuadro" style="background:${c}"></span>${t}</span>`
+    ).join('');
+}
+
 function refrescarPartidos() {
     // La tabla usa los mismos filtros: se mantiene al día con el mapa
     if (typeof tabla !== 'undefined' && document.getElementById('vistaTabla') &&
@@ -852,6 +956,7 @@ function refrescarPartidos() {
     partidosLayer.eachLayer(layer => {
         layer.setStyle(estiloPartido(layer.feature, false));
     });
+    actualizarMarcadoresLicitaciones();
 }
 
 function actualizarLabelsPartidos() {
@@ -957,10 +1062,12 @@ function crearLeyendaEl() {
     return el;
 }
 
+// Los identificadores internos no cambian (romperian los datos guardados):
+// lo que cambia es como se llaman en pantalla.
 function textoEstado(e) {
     if (e === 'inscripto') return 'Inscripto';
-    if (e === 'por-iniciar') return 'Por iniciar';
-    if (e === 'no-inscripto') return 'No inscripto';
+    if (e === 'por-iniciar') return 'En proceso';
+    if (e === 'no-inscripto') return 'Próximos';
     return e;
 }
 
@@ -1751,6 +1858,10 @@ function bindUI() {
         else if (document.getElementById('modalInscripcion').style.display === 'flex') cerrarModalInscripcion();
         else if (document.getElementById('modalClient').style.display === 'flex') cerrarModalCliente();
         else if (document.getElementById('modalVencimientos').style.display === 'flex') cerrarModalVencimientos();
+    });
+
+    document.querySelectorAll('.modo-btn').forEach(b => {
+        b.addEventListener('click', () => cambiarModoMapa(b.dataset.modo));
     });
 
     document.querySelectorAll('.tab-vista').forEach(t => {

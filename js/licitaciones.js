@@ -5,6 +5,10 @@
 // resultado y competidores. En un municipio puede haber muchas, y se
 // repiten todos los años.
 
+// Lista cerrada: si cada uno escribe el rubro a mano, los totales se
+// parten en variantes y dejan de servir.
+const RUBROS_LICITACION = ['Alimentos', 'SAE', 'Colonias', 'Navideños', 'Electrodomésticos', 'Suministros'];
+
 const ESTADOS_LICITACION = [
     { id: 'oportunidad',    texto: 'Oportunidad',    ayuda: 'La vimos, todavía no hicimos nada' },
     { id: 'en-preparacion', texto: 'En preparación', ayuda: 'Estamos armando la oferta' },
@@ -80,8 +84,12 @@ const licitaciones = {
                     </div>
                     <div class="lic-objeto">${escapeHtml(l.objeto)}</div>
                     <div class="lic-chips">
+                        ${l.rubro ? `<span class="lic-rubro">${escapeHtml(l.rubro)}</span>` : ''}
                         ${socs.map(s => `<span class="lic-soc"><span class="tabla-punto" style="background:${s.color}"></span>${escapeHtml(s.nombre)}</span>`).join('')}
                         ${esUte ? '<span class="lic-ute">UTE</span>' : ''}
+                        ${!socs.length ? '<span class="lic-sin-empresa">Falta definir la empresa</span>' : ''}
+                        ${l.fechaPliego ? `<span class="meta-chip">Pliego ${fechaLegible(l.fechaPliego)}</span>` : ''}
+                        ${l.fechaMuestras ? `<span class="meta-chip">Muestras ${fechaLegible(l.fechaMuestras)}</span>` : ''}
                         ${l.fechaApertura ? `<span class="meta-chip">Abre ${fechaLegible(l.fechaApertura)}</span>` : ''}
                         ${l.montoOfertado !== null ? `<span class="monto-badge">Ofertado ${formatMonto(l.montoOfertado)}</span>` : ''}
                         ${l.montoAdjudicado !== null ? `<span class="monto-badge adjudicado">Adjudicado ${formatMonto(l.montoAdjudicado)}</span>` : ''}
@@ -127,10 +135,18 @@ const licitaciones = {
             </label>
         `).join('');
 
+        // Rubros
+        const selRubro = document.getElementById('licRubro');
+        selRubro.innerHTML = '<option value="">Sin definir</option>' +
+            RUBROS_LICITACION.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+        selRubro.value = (l && l.rubro) || '';
+
         const v = (campo, valor) => { document.getElementById(campo).value = valor || ''; };
         v('licExpediente', l && l.expediente);
         v('licObjeto', l && l.objeto);
         v('licTipo', l && l.tipo);
+        v('licFechaPliego', l && l.fechaPliego);
+        v('licFechaMuestras', l && l.fechaMuestras);
         v('licFechaPublicacion', l && l.fechaPublicacion);
         v('licFechaApertura', l && l.fechaApertura);
         v('licFechaResultado', l && l.fechaResultado);
@@ -214,7 +230,10 @@ const licitaciones = {
             expediente: document.getElementById('licExpediente').value.trim(),
             objeto,
             tipo: document.getElementById('licTipo').value.trim(),
+            rubro: document.getElementById('licRubro').value,
             estadoProceso: document.getElementById('licEstado').value,
+            fechaPliego: document.getElementById('licFechaPliego').value,
+            fechaMuestras: document.getElementById('licFechaMuestras').value,
             fechaPublicacion: document.getElementById('licFechaPublicacion').value,
             fechaApertura: document.getElementById('licFechaApertura').value,
             fechaResultado: document.getElementById('licFechaResultado').value,

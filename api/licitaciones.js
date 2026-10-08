@@ -8,6 +8,10 @@ const router = express.Router();
 const ESTADOS = ['oportunidad', 'en-preparacion', 'presentada', 'en-evaluacion',
                  'ganada', 'perdida', 'desierta', 'desistida', 'a-clasificar'];
 
+// Los rubros que licitan los municipios. Lista cerrada para que los
+// totales por rubro no se partan en variantes escritas distinto.
+const RUBROS = ['Alimentos', 'SAE', 'Colonias', 'Navideños', 'Electrodomésticos', 'Suministros'];
+
 function perfilDe(req) {
     return {
         id: (req.get('X-Perfil-Id') || '').slice(0, 60) || null,
@@ -31,7 +35,10 @@ function aLicitacion(f) {
         expediente: f.expediente || '',
         objeto: f.objeto || '',
         tipo: f.tipo || '',
+        rubro: f.rubro || '',
         estadoProceso: f.estado_proceso,
+        fechaPliego: fecha(f.fecha_pliego),
+        fechaMuestras: fecha(f.fecha_muestras),
         fechaPublicacion: fecha(f.fecha_publicacion),
         fechaApertura: fecha(f.fecha_apertura),
         fechaResultado: fecha(f.fecha_resultado),
@@ -91,19 +98,24 @@ router.post('/licitaciones', async (req, res) => {
         await enTransaccion(async (cli) => {
             await cli.query(
                 `INSERT INTO licitaciones
-                   (id, municipio_id, expediente, objeto, tipo, estado_proceso,
+                   (id, municipio_id, expediente, objeto, tipo, rubro, estado_proceso,
+                    fecha_pliego, fecha_muestras,
                     fecha_publicacion, fecha_apertura, fecha_resultado,
                     monto_presupuesto, monto_ofertado, monto_adjudicado,
                     plazo_meses, notas, creado_por)
-                 VALUES ($1,$2,$3,$4,$5,$6,
-                         NULLIF($7,'')::date, NULLIF($8,'')::date, NULLIF($9,'')::date,
-                         $10,$11,$12,$13,$14,$15)
+                 VALUES ($1,$2,$3,$4,$5,$6,$7,
+                         NULLIF($8,'')::date, NULLIF($9,'')::date,
+                         NULLIF($10,'')::date, NULLIF($11,'')::date, NULLIF($12,'')::date,
+                         $13,$14,$15,$16,$17,$18)
                  ON CONFLICT (id) DO UPDATE SET
                     municipio_id = EXCLUDED.municipio_id,
                     expediente = EXCLUDED.expediente,
                     objeto = EXCLUDED.objeto,
                     tipo = EXCLUDED.tipo,
+                    rubro = EXCLUDED.rubro,
                     estado_proceso = EXCLUDED.estado_proceso,
+                    fecha_pliego = EXCLUDED.fecha_pliego,
+                    fecha_muestras = EXCLUDED.fecha_muestras,
                     fecha_publicacion = EXCLUDED.fecha_publicacion,
                     fecha_apertura = EXCLUDED.fecha_apertura,
                     fecha_resultado = EXCLUDED.fecha_resultado,
@@ -112,9 +124,11 @@ router.post('/licitaciones', async (req, res) => {
                     monto_adjudicado = EXCLUDED.monto_adjudicado,
                     plazo_meses = EXCLUDED.plazo_meses,
                     notas = EXCLUDED.notas,
-                    actualizado_por = $15,
+                    actualizado_por = $18,
                     actualizado_en = now()`,
-                [id, b.municipioId, b.expediente || '', String(b.objeto).trim(), b.tipo || '', estado,
+                [id, b.municipioId, b.expediente || '', String(b.objeto).trim(), b.tipo || '',
+                 RUBROS.includes(b.rubro) ? b.rubro : '', estado,
+                 b.fechaPliego || '', b.fechaMuestras || '',
                  b.fechaPublicacion || '', b.fechaApertura || '', b.fechaResultado || '',
                  b.montoPresupuesto ?? null, b.montoOfertado ?? null, b.montoAdjudicado ?? null,
                  b.plazoMeses ?? null, b.notas || '', perfil.nombre]
@@ -178,3 +192,4 @@ router.delete('/licitaciones/:id', async (req, res) => {
 });
 
 module.exports = router;
+module.exports.RUBROS = RUBROS;

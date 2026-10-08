@@ -108,7 +108,7 @@
                         <input type="checkbox" data-status="por-iniciar" checked>
                         <span class="status-badge por-iniciar">
                             <span class="status-dot"></span>
-                            Por iniciar
+                            En proceso
                         </span>
                         <span class="count" id="count-por-iniciar">0</span>
                     </label>
@@ -116,7 +116,7 @@
                         <input type="checkbox" data-status="no-inscripto">
                         <span class="status-badge no-inscripto">
                             <span class="status-dot"></span>
-                            No inscripto
+                            Próximos
                         </span>
                         <span class="count" id="count-no-inscripto">0</span>
                     </label>
@@ -236,6 +236,16 @@
         <!-- Mapa principal -->
         <main class="map-container">
             <div id="map"></div>
+
+            <!-- Que pinta el mapa -->
+            <div class="modo-mapa" id="modoMapa">
+                <span class="modo-titulo">Pintar por</span>
+                <button class="modo-btn activa" data-modo="altas">Altas</button>
+                <button class="modo-btn" data-modo="licitaciones">Licitaciones</button>
+            </div>
+
+            <!-- Referencia de colores -->
+            <div class="leyenda-colores" id="leyendaColores"></div>
         </main>
 
         <!-- Vista de tabla -->
@@ -359,13 +369,13 @@
                         <label class="status-option">
                             <input type="radio" name="estado" value="por-iniciar">
                             <span class="status-badge por-iniciar">
-                                <span class="status-dot"></span> Por iniciar
+                                <span class="status-dot"></span> En proceso
                             </span>
                         </label>
                         <label class="status-option">
                             <input type="radio" name="estado" value="no-inscripto">
                             <span class="status-badge no-inscripto">
-                                <span class="status-dot"></span> No inscripto
+                                <span class="status-dot"></span> Próximos
                             </span>
                         </label>
                     </div>
@@ -504,19 +514,36 @@
                 <div class="form-group">
                     <label>Sociedad con la que nos presentamos</label>
                     <div class="lic-socs" id="licSociedades"></div>
-                    <span class="hint">Si se presenta en UTE, marcá más de una.</span>
+                    <span class="hint">Si se presenta en UTE, marcá más de una. Si todavía no se decidió, dejalas sin marcar.</span>
                 </div>
 
-                <div class="form-group">
-                    <label>Estado del proceso</label>
-                    <select id="licEstado"></select>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Rubro</label>
+                        <select id="licRubro"></select>
+                    </div>
+                    <div class="form-group">
+                        <label>Estado del proceso</label>
+                        <select id="licEstado"></select>
+                    </div>
                 </div>
 
                 <div class="form-row form-row-3">
                     <div class="form-group">
+                        <label>Adquisición del pliego</label>
+                        <input type="date" id="licFechaPliego">
+                    </div>
+                    <div class="form-group">
+                        <label>Entrega de muestras</label>
+                        <input type="date" id="licFechaMuestras">
+                    </div>
+                    <div class="form-group">
                         <label>Publicación</label>
                         <input type="date" id="licFechaPublicacion">
                     </div>
+                </div>
+
+                <div class="form-row">
                     <div class="form-group">
                         <label>Apertura</label>
                         <input type="date" id="licFechaApertura">
