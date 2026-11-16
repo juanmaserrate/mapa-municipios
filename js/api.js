@@ -96,6 +96,11 @@ const api = {
         return this.pedir('/resumen');
     },
 
+    // Competencia: la ve cualquier perfil
+    competencia() {
+        return this.pedir('/competencia');
+    },
+
     estadoAvisos() {
         return this.pedir('/alertas/estado');
     },

@@ -10,6 +10,7 @@ const apiDatos = require('./api/datos');
 const apiLicitaciones = require('./api/licitaciones');
 const apiAlertas = require('./api/alertas');
 const apiResumen = require('./api/resumen');
+const apiCompetencia = require('./api/competencia');
 const { indexVersionado } = require('./lib/versionado');
 
 const app = express();
@@ -33,6 +34,7 @@ app.use('/api', apiDatos);
 app.use('/api', apiLicitaciones);
 app.use('/api', apiAlertas);
 app.use('/api', apiResumen);
+app.use('/api', apiCompetencia);
 
 // El index se sirve con los numeros de version calculados del contenido
 // de cada archivo, asi nadie tiene que acordarse de subirlos a mano.

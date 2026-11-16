@@ -1,0 +1,97 @@
+/* Vista de competencia: contra quién se pelea cada licitación */
+/* Parte de la hoja de estilos del Mapa Comercial. El ORDEN de carga importa:
+   ver el orden de los <link> en index.html antes de mover nada. */
+
+#competenciaContenido { padding: 4px 20px 28px; }
+
+.comp-tabla { font-size: 12.5px; }
+.comp-tabla thead th { user-select: none; }
+
+.comp-ayuda {
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    font-size: 11.5px;
+    line-height: 1.55;
+    color: var(--text-muted);
+}
+
+/* --- Cara a cara --- */
+.comp-duelos {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 11px;
+}
+
+.comp-duelo {
+    padding: 13px 15px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-card);
+}
+
+.comp-duelo-top {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    margin-bottom: 9px;
+}
+
+.comp-duelo-top strong {
+    font-size: 13px;
+    color: var(--text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.comp-marcador {
+    font-size: 15px;
+    font-weight: 700;
+    white-space: nowrap;
+    color: var(--text-dim);
+}
+
+.comp-gane { color: #047857; }
+.comp-perdi { color: #b91c1c; }
+
+.comp-barra {
+    height: 7px;
+    border-radius: 4px;
+    background: rgba(220, 38, 38, 0.22);
+    overflow: hidden;
+}
+
+.comp-barra-gane {
+    height: 100%;
+    border-radius: 4px;
+    background: #10b981;
+    transition: width 0.3s;
+}
+
+.comp-duelo-pie {
+    margin-top: 7px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* --- Fila de competidor en el formulario, ahora con garantía y zonas --- */
+.comp-fila {
+    grid-template-columns: 1fr 120px 110px 28px;
+    grid-template-rows: auto auto;
+    gap: 7px;
+}
+
+.comp-fila .comp-garantia { grid-column: 1 / 3; }
+.comp-fila .comp-zonas { grid-column: 3 / -1; }
+
+@media (max-width: 768px) {
+    #competenciaContenido { padding: 4px 12px 24px; }
+    .comp-fila { grid-template-columns: 1fr 1fr; }
+    .comp-fila .comp-nombre,
+    .comp-fila .comp-garantia,
+    .comp-fila .comp-zonas { grid-column: 1 / -1; }
+}

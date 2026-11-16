@@ -182,6 +182,14 @@ const licitaciones = {
                     <option value="perdio" ${c.resultado === 'perdio' ? 'selected' : ''}>Perdió</option>
                 </select>
                 <button type="button" class="comp-quitar" title="Quitar">×</button>
+                <select class="comp-garantia">
+                    <option value="">Garantía...</option>
+                    <option value="Póliza de caución" ${c.tipoGarantia === 'Póliza de caución' ? 'selected' : ''}>Póliza de caución</option>
+                    <option value="Pagaré" ${c.tipoGarantia === 'Pagaré' ? 'selected' : ''}>Pagaré</option>
+                    <option value="Depósito" ${c.tipoGarantia === 'Depósito' ? 'selected' : ''}>Depósito</option>
+                    <option value="Otra" ${c.tipoGarantia === 'Otra' ? 'selected' : ''}>Otra</option>
+                </select>
+                <input type="text" class="comp-zonas" value="${escapeHtml(c.zonas || '')}" placeholder="Zonas o renglones a los que se presentó">
             </div>
         `).join('') || '<div class="comp-vacio">Sin competidores cargados</div>';
 
@@ -201,13 +209,15 @@ const licitaciones = {
             nombre: f.querySelector('.comp-nombre').value.trim(),
             montoOfertado: parseMonto(f.querySelector('.comp-monto').value),
             resultado: f.querySelector('.comp-resultado').value,
+            tipoGarantia: f.querySelector('.comp-garantia').value,
+            zonas: f.querySelector('.comp-zonas').value.trim(),
             notas: ''
         })).filter(c => c.nombre);
     },
 
     agregarCompetidor() {
         this.leerCompetidoresDelFormulario();
-        this.competidoresTemp.push({ nombre: '', montoOfertado: null, resultado: 'participo', notas: '' });
+        this.competidoresTemp.push({ nombre: '', montoOfertado: null, resultado: 'participo', tipoGarantia: '', zonas: '', notas: '' });
         this.renderCompetidores();
         const ultimo = document.querySelector('#licCompetidores .comp-fila:last-child .comp-nombre');
         if (ultimo) ultimo.focus();

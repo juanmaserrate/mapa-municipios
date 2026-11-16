@@ -139,6 +139,9 @@ async function recargarDesdeServidor() {
     const vtb = document.getElementById('vistaTablero');
     if (typeof tablero !== 'undefined' && vtb && vtb.style.display !== 'none') tablero.cargar();
 
+    const vc = document.getElementById('vistaCompetencia');
+    if (typeof competencia !== 'undefined' && vc && vc.style.display !== 'none') competencia.cargar();
+
     return true;
 }
 
@@ -1871,6 +1874,7 @@ function bindUI() {
     document.getElementById('btnExcel').addEventListener('click', () => tabla.exportarExcel());
     document.getElementById('btnExcelHistorial').addEventListener('click', () => historial.exportarExcel());
     document.getElementById('btnExcelTablero').addEventListener('click', () => tablero.exportarExcel());
+    document.getElementById('btnExcelCompetencia').addEventListener('click', () => competencia.exportarExcel());
 
     document.getElementById('btnClosePerfil').addEventListener('click', cerrarSelectorPerfil);
     document.getElementById('btnCrearPerfil').addEventListener('click', crearPerfilNuevo);

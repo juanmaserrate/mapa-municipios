@@ -65,7 +65,8 @@ const SQL_LISTA = `
            COALESCE(
                (SELECT json_agg(json_build_object(
                    'id', c.id, 'nombre', c.nombre,
-                   'montoOfertado', c.monto_ofertado, 'resultado', c.resultado, 'notas', c.notas
+                   'montoOfertado', c.monto_ofertado, 'resultado', c.resultado, 'notas', c.notas,
+                   'tipoGarantia', c.tipo_garantia, 'montoGarantia', c.monto_garantia, 'zonas', c.zonas
                ) ORDER BY c.monto_ofertado NULLS LAST) FROM licitacion_competidores c WHERE c.licitacion_id = l.id),
                '[]'::json
            ) AS competidores
@@ -148,12 +149,14 @@ router.post('/licitaciones', async (req, res) => {
             for (const c of (b.competidores || [])) {
                 if (!c.nombre || !String(c.nombre).trim()) continue;
                 await cli.query(
-                    `INSERT INTO licitacion_competidores (id, licitacion_id, nombre, monto_ofertado, resultado, notas)
-                     VALUES ($1,$2,$3,$4,$5,$6)`,
+                    `INSERT INTO licitacion_competidores
+                       (id, licitacion_id, nombre, monto_ofertado, resultado, notas,
+                        tipo_garantia, monto_garantia, zonas)
+                     VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)`,
                     [c.id || 'comp_' + Date.now() + '_' + Math.random().toString(36).slice(2, 7),
                      id, String(c.nombre).trim(), c.montoOfertado ?? null,
                      ['gano', 'perdio', 'participo'].includes(c.resultado) ? c.resultado : 'participo',
-                     c.notas || '']
+                     c.notas || '', c.tipoGarantia || '', c.montoGarantia ?? null, c.zonas || '']
                 );
             }
 

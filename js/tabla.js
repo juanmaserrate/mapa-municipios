@@ -220,6 +220,7 @@ function mostrarVista(cual) {
     document.querySelector('.map-container').style.display = cual === 'mapa' ? '' : 'none';
     document.getElementById('vistaTabla').style.display = cual === 'tabla' ? '' : 'none';
     document.getElementById('vistaTablero').style.display = cual === 'tablero' ? '' : 'none';
+    document.getElementById('vistaCompetencia').style.display = cual === 'competencia' ? '' : 'none';
     document.getElementById('vistaHistorial').style.display = cual === 'historial' ? '' : 'none';
 
     document.querySelectorAll('.tab-vista').forEach(t => {
@@ -229,5 +230,6 @@ function mostrarVista(cual) {
     if (cual === 'mapa') setTimeout(() => map.invalidateSize(), 60);
     else if (cual === 'tabla') tabla.render();
     else if (cual === 'tablero') tablero.cargar();
+    else if (cual === 'competencia') competencia.cargar();
     else if (cual === 'historial') historial.cargar();
 }
